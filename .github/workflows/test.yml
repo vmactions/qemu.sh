@@ -40,7 +40,7 @@ jobs:
       run: |
         set -ex
         sudo apt-get update && sudo apt-get --no-install-recommends -y install \
-        wget curl \
+        wget curl axel \
         7zip \
         zstd \
         ovmf \
