@@ -381,7 +381,7 @@ _initInVM() {
   #init ssh
   mkdir -p ~/.ssh
   cat "$_vmpub" >> ~/.ssh/authorized_keys
-  
+  touch ~/.ssh/config
   if ! grep "Include config.d" ~/.ssh/config; then
     echo 'Include config.d/*.conf' >>~/.ssh/config
   fi
