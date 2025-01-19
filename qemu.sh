@@ -380,13 +380,12 @@ _initInVM() {
 
   #init ssh
   mkdir -p ~/.ssh
-  chmod 600 ~/.ssh
-  sudo ls -lah ~/.ssh/authorized_keys
-  sudo cat "$_vmpub" >> ~/.ssh/authorized_keys
+  cat "$_vmpub" >> ~/.ssh/authorized_keys
+  
   if ! grep "Include config.d" ~/.ssh/config; then
     echo 'Include config.d/*.conf' >>~/.ssh/config
   fi
-  chmod 600 ~/.ssh/config
+  
   mkdir -p ~/.ssh/config.d
   echo "
 
@@ -399,6 +398,9 @@ Host $_name
   IdentityFile=$_hostid
   
 ">~/.ssh/config.d/$_name.conf
+  chmod 600 ~/.ssh/config
+  chmod 600 ~/.ssh
+
   echo "======================================"
   echo ""
   echo "You can login the vm with: ssh $_name"
