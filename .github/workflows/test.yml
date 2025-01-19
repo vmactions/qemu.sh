@@ -32,13 +32,13 @@ jobs:
         runs: [ "ubuntu-24.04"]
 
     runs-on: ${{ matrix.runs }}
-    name: Test sshfs ${{ matrix.os }}
+    name: Test sshfs ${{ matrix.os }} ${{ matrix.arch }}
     steps:
     - uses: actions/checkout@v4
-    - name: Test
+    - name: Test 
       id: test
       run: |
-        apt-get update && apt-get --no-install-recommends -y install \
+        sudo apt-get update && apt-get --no-install-recommends -y install \
         wget curl\
         7zip \
         zstd \
