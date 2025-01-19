@@ -425,6 +425,10 @@ EOF
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
 mkdir -p "$_vguest"
 
+if [ "$_os" = "freebsd" ]; then
+  kldload  fusefs
+fi
+
 if [ "$_os" = "netbsd" ]; then
   if ! /usr/sbin/mount_psshfs host:"$_vhost" "$_vguest"; then
     echo "error run sshfs in vm."
