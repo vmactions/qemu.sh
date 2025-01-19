@@ -48,7 +48,7 @@ jobs:
         qemu-utils \
         ca-certificates \
         qemu-system-x86 \
-        qemu-system-arm 
+        qemu-system-arm qemu-efi-aarch64
         
         bash qemu.sh --os ${{ matrix.os }} --arch ${{ matrix.arch }} -d -v "$(pwd):/mnt/host" --sshport 10022
         ssh -p 10022 root@localhost ls /mnt/host
