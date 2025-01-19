@@ -1,0 +1,56 @@
+
+name: Test
+
+on:
+  workflow_dispatch:
+  release:
+    types: [ published ]
+  push:
+    branches:
+      - '*'
+    paths:
+      - '**.sh'
+      - '.github/workflows/test.yml'
+
+
+
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+
+jobs:
+  testsshfs:
+    if: ${{ !contains(github.repository, 'solaris') && !contains(github.repository, 'dragonflybsd') && !contains(github.repository, 'omnios')}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ "freebsd", "netbsd", "openbsd"]
+        arch: [ "aarch64", ""]
+        runs: [ "ubuntu-24.04"]
+
+    runs-on: ${{ matrix.runs }}
+    name: Test sshfs ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Test
+      id: test
+      run: |
+        bash qemu.sh --os ${{ matrix.os }} --arch ${{ matrix.arch }} -d -v "$(pwd):/mnt/host" --sshport 10022
+        ssh -p 10022 root@localhost ls /mnt/host
+
+
+
+
+
+
+
+
+
+
+
+
+
+
