@@ -2,7 +2,8 @@
 
 #curl wget screen axel ss lsof netstat zstd ssh
 #ssh client and ssh server(for sshfs mount)
-
+#rsync
+#nfs-kernel-server
 
 set -e
 
@@ -25,6 +26,9 @@ _detach=""
 _vpath=""
 #number: 0, 1, 2  or "off"
 _vnc=""
+
+#sync: sshfs, nfs
+_sync=sshfs
 
 #qemu managment port
 _qmon=""
@@ -92,6 +96,10 @@ while [ ${#} -gt 0 ]; do
     _vnc="$2"
     shift
     ;;
+  --sync)
+    _sync="$2"
+    shift
+    ;;
   *)
     echo "Unknown parameter: $1"
     exit 1
@@ -102,7 +110,7 @@ done
 
 
 if [ -z "$_os" ]; then
-  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--uefi] [--detach | -d | --console | -c ]"
+  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--sync sshfs|nfs|rsync] [--uefi] [--detach | -d | --console | -c ]"
   exit 1
 fi
 
@@ -485,7 +493,23 @@ EOF
     echo "Mount host dir: $_vhost"
     _vguest="$(echo "$_vpath" | cut -d : -f 2)"
     echo "Mount to guest dir: $_vguest"
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
+
+    if [ "$_sync" = "sshfs" ] || [ -z "$_sync" ]; then
+      _syncSSHFS "$_vhost" "$_vguest"
+    elif if [ "$_sync" = "nfs" ]; then
+      _syncNFS "$_vhost" "$_vguest"
+    else
+      _syncRSYNC "$_vhost" "$_vguest"
+    fi
+
+  fi
+}
+
+
+_syncSSHFS() {
+  _vhost="$1"
+  _vguest="$2"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
 mkdir -p "$_vguest"
 
 if [ "$_os" = "netbsd" ]; then
@@ -515,17 +539,40 @@ echo "ssh finished."
 
 EOF
 
-  fi
+
 }
 
+_syncNFS() {
+  _vhost="$1"
+  _vguest="$2"
+  _SUDO=""
+  if command -v sudo; then
+    _SUDO="sudo"
+  fi
+  echo "$_vhost *(rw,async,no_subtree_check,anonuid=$(id -u),anongid=$(id -g))" | $_SUDO tee -a /etc/exports
+  sudo exportfs -a
+  echo "Configuring NFS in VM with default command"
 
-
-
-
-__INTERACTIVE=""
-if [ -t 1 ]; then
-  __INTERACTIVE="1"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
+if [ "$_os" = "openbsd" ]; then
+  mount -t nfs -o -T 192.168.122.2:$_vhost $_vguest
+elif [ -e "/sbin/mount" ]; then
+  /sbin/mount 192.168.122.2:$_vhost $_vguest
+else
+  mount 192.168.122.2:$_vhost $_vguest
 fi
+
+EOF
+  echo "Done with NFS"
+
+}
+
+_syncRSYNC() {
+  _vhost="$1"
+  _vguest="$2"
+
+}
+
 
 
 if [ "$_console" ]; then
