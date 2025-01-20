@@ -496,7 +496,7 @@ EOF
 
     if [ "$_sync" = "sshfs" ] || [ -z "$_sync" ]; then
       _syncSSHFS "$_vhost" "$_vguest"
-    elif if [ "$_sync" = "nfs" ]; then
+    elif [ "$_sync" = "nfs" ]; then
       _syncNFS "$_vhost" "$_vguest"
     else
       _syncRSYNC "$_vhost" "$_vguest"
