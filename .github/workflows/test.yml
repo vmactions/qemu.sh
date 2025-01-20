@@ -50,6 +50,8 @@ jobs:
         qemu-system-x86 \
         qemu-system-arm qemu-efi-aarch64
         
+        sudo usermod -aG kvm $USER
+        
         bash qemu.sh --os "${{ matrix.os }}" --arch "${{ matrix.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022
         # We use the ssh port as an alias to the vm, so we can use 'ssh $port' to login
         ssh 10022 ls /mnt/host
