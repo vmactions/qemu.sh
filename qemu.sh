@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+#curl wget screen axel ss lsof netstat zstd ssh
+#ssh client and ssh server(for sshfs mount)
+
+
 set -e
 
 
@@ -14,9 +18,18 @@ _mem="6144"
 _cpu="2"
 _nc="e1000"
 _sshport="10022"
+#attach to ssh console by default
+_console=""
 _useefi=""
 _detach=""
 _vpath=""
+#number: 0, 1, 2  or "off"
+_vnc=""
+
+#qemu managment port
+_qmon=""
+
+
 
 _workingdir="$_script_home/output"
 
@@ -64,8 +77,19 @@ while [ ${#} -gt 0 ]; do
   --detach | -d)
     _detach="1"
     ;;
+  --console|-c)
+    _console="1"
+    ;;
   -v)
     _vpath="$2"
+    shift
+    ;;
+  --mon)
+    _qmon="$2"
+    shift
+    ;;
+  --vnc)
+    _vnc="$2"
     shift
     ;;
   *)
@@ -78,7 +102,7 @@ done
 
 
 if [ -z "$_os" ]; then
-  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data]  [--uefi] [--detach | -d]"
+  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--uefi] [--detach | -d | --console | -c ]"
   exit 1
 fi
 
@@ -198,30 +222,29 @@ qow2="$(echo "$zst_link" | rev  | cut -d / -f 1 | cut -d . -f 2- | rev)"
  
 
 if [ ! -e "$_output/$qow2" ]; then
-
-  echo "Downloading $zst_link"
-  axel -n 8 -o "$_output/$ovafile"  "$zst_link"
-  
-  for i in $(seq 1 9) ; do
-    _url="${zst_link}.$i"
-    echo "Checking $_url"
-    if ! check_url_exists "$_url"; then
-      echo "break"
-      break
-    fi
-    axel -n 8 -o "$_output/${ovafile}.$i"  "$_url"
-    ls -lah
-    cat "$_output/${ovafile}.$i" >>"$_output/$ovafile"
-    rm -f "$_output/${ovafile}.$i"
-  done
-
-  echo "Download finished, extracting"
+  if [ ! -e "$_output/$ovafile" ]; then
+    echo "Downloading $zst_link"
+    axel -n 8 -o "$_output/$ovafile"  "$zst_link"
+    
+    for i in $(seq 1 9) ; do
+      _url="${zst_link}.$i"
+      echo "Checking $_url"
+      if ! check_url_exists "$_url"; then
+        echo "break"
+        break
+      fi
+      axel -n 8 -o "$_output/${ovafile}.$i"  "$_url"
+      ls -lah
+      cat "$_output/${ovafile}.$i" >>"$_output/$ovafile"
+      rm -f "$_output/${ovafile}.$i"
+    done
+  fi
+  echo "Extracting"
   if _endswith "$zst_link" ".xz"; then
     #just to keep compatible with the old xz editions
     xz -v -d -c "$_output/$ovafile" >"$_output/$qow2"
   else
     zstd -d "$_output/$ovafile" -o "$_output/$qow2"
-    rm -f "$_output/$ovafile"
   fi
   echo "Extract finished"
 fi
@@ -263,14 +286,33 @@ fi
 
 _qowfull="$_output/$qow2"
 
-_qemu_args="-monitor telnet:localhost:7100,server,nowait,nodelay  
--device virtio-balloon-pci -display vnc=:0 -serial mon:stdio  
+_qemu_args="-device virtio-balloon-pci -serial mon:stdio  
 -name $_name,process=$_name     
 -smp ${_cpu:-2} 
 -m ${_mem:-6144}  
 -device ${_nc:-e1000},netdev=hostnet0 
 -netdev user,id=hostnet0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
 -drive file=${_qowfull},format=qcow2,if=virtio "
+
+if [ "$_qmon" ]; then
+  _qemu_args="-monitor telnet:localhost:$_qmon,server,nowait,nodelay  $_qemu_args "
+fi
+
+if [ "$_vnc" != "off" ]; then
+  if [ -z "$_vnc" ]; then
+    if command -v ss; then
+      _vnc=$(ss -4ntpl | grep :590 | wc -l)
+    elif command -v lsof; then
+      _vnc=$(lsof -i4 -sTCP:LISTEN -n -P | grep :590 | wc -l)
+    elif command -v netstat; then
+      _vnc=$(netstat -ntpl4 | grep :590 | wc -l)
+    else
+      _vnc=0
+    fi
+  fi
+  _qemu_args=" -display vnc=:$_vnc  $_qemu_args "
+fi
+
 
 
 _current="$(uname -m)"
@@ -358,6 +400,15 @@ for i in $(seq 0 9) ; do
 done
 )&
 
+sleep 1
+
+if screen -ls | grep -q "$CONSOLE_NAME"; then
+  echo "QEMU started."
+else
+  echo "QEMU start error: "
+  cat "$CONSOLE_FILE"
+  exit 1
+fi
 
 ####################################
 
@@ -365,10 +416,17 @@ done
 
 
 _initInVM() {
+  _showlog="$1"
   #initialize file mounting
+  if [ "$_showlog" ]; then
+    tail -F "$CONSOLE_FILE"&
+    _tailid="$!"
+  fi
   _retry=0
   while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
-    echo "vm is booting just wait."
+    if [ -z "$_showlog" ]; then
+      echo "vm is booting just wait."
+    fi
     sleep 2
     _retry=$(($_retry + 1))
     if [ $_retry -gt 100 ]; then
@@ -376,21 +434,26 @@ _initInVM() {
       return 1
     fi
   done
+  if [ "$_showlog" ]; then
+    kill "$_tailid"
+  fi
   echo "Boot ready"
 
   #init ssh
   mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
   cat "$_vmpub" >> ~/.ssh/authorized_keys
   touch ~/.ssh/config
-  if ! grep "Include config.d" ~/.ssh/config; then
+  if ! grep "Include config.d" ~/.ssh/config >/dev/null; then
     echo 'Include config.d/*.conf' >>~/.ssh/config
   fi
   
   mkdir -p ~/.ssh/config.d
   echo "
 
-Host $_name
+Host $_name  $_sshport
   StrictHostKeyChecking no
+  SendEnv   CI  GITHUB_* 
   UserKnownHostsFile=/dev/null
   User root
   HostName localhost
@@ -399,14 +462,14 @@ Host $_name
   
 ">~/.ssh/config.d/$_name.conf
   chmod 600 ~/.ssh/config
-  chmod 600 ~/.ssh
 
-  echo "======================================"
-  echo ""
-  echo "You can login the vm with: ssh $_name"
-  echo ""
-  echo "======================================"
-  
+  if [ "$_console" ]; then
+    echo "======================================"
+    echo ""
+    echo "You can login the vm with: ssh $_name"
+    echo "Or just:  ssh $_sshport"
+    echo "======================================"
+  fi
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
 echo 'StrictHostKeyChecking=no' >.ssh/config
 
@@ -425,26 +488,30 @@ EOF
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
 mkdir -p "$_vguest"
 
-if [ "$_os" = "freebsd" ]; then
-  kldload  fusefs
-fi
-
 if [ "$_os" = "netbsd" ]; then
-  if ! /usr/sbin/mount_psshfs host:"$_vhost" "$_vguest"; then
+  if ! /usr/sbin/mount_psshfs host:"$_vhost" "$_vguest" >/dev/null 2>&1; then
     echo "error run sshfs in vm."
-   exit 1
-  fi
-  echo "sshfs OK"
-elif sshfs -o reconnect,ServerAliveCountMax=2,allow_other,default_permissions host:$_vhost $_vguest ; then
-  echo "run sshfs in vm is OK, show mount:"
-  /sbin/mount
-  if [ "$_os" = "netbsd" ]; then
-    tree $_vhost
+    exit 1
   fi
 else
-  echo "error run sshfs in vm."
-  exit 1
+  if [ "$_os" = "freebsd" ]; then
+    kldload  fusefs
+  fi
+
+  if sshfs -o reconnect,ServerAliveCountMax=2,allow_other,default_permissions host:$_vhost $_vguest ; then
+    echo "run sshfs in vm is OK, show mount:"
+    /sbin/mount
+    if [ "$_os" = "netbsd" ]; then
+      tree $_vhost
+    fi
+  else
+    echo "error run sshfs in vm."
+    exit 1
+  fi
+
 fi
+
+echo "ssh finished."
 
 EOF
 
@@ -461,17 +528,25 @@ if [ -t 1 ]; then
 fi
 
 
-if [ "$__INTERACTIVE" ] && [ -z "$_detach" ]; then
-  _initInVM >dev/null &
+if [ "$_console" ]; then
+  _initInVM >/dev/null &
   screen -r "$CONSOLE_NAME"
 else
-  _initInVM
   if [ -z "$_detach" ]; then
-    screen -r "$CONSOLE_NAME"
+    _initInVM 1
+  else
+    _initInVM
+  fi
+  if [ -z "$_detach" ]; then
+    ssh "$_name"
   fi
 fi
 
 
-
+echo "======================================"
+echo "The vm is still running."
+echo "You can login the vm with:  ssh $_name"
+echo "Or just:  ssh $_sshport"
+echo "======================================"
 
 
