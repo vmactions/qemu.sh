@@ -550,10 +550,12 @@ _syncNFS() {
     _SUDO="sudo"
   fi
   echo "$_vhost *(rw,async,no_subtree_check,anonuid=$(id -u),anongid=$(id -g))" | $_SUDO tee -a /etc/exports
-  sudo exportfs -a
+  $_SUDO exportfs -a
+  $_SUDO service nfs-server restart
   echo "Configuring NFS in VM with default command"
 
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
+mkdir -p "$_vguest"
 if [ "$_os" = "openbsd" ]; then
   mount -t nfs -o -T 192.168.122.2:$_vhost $_vguest
 elif [ -e "/sbin/mount" ]; then
