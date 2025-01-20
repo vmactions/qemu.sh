@@ -224,7 +224,7 @@ qow2="$(echo "$zst_link" | rev  | cut -d / -f 1 | cut -d . -f 2- | rev)"
 if [ ! -e "$_output/$qow2" ]; then
   if [ ! -e "$_output/$ovafile" ]; then
     echo "Downloading $zst_link"
-    axel -p -n 8 -o "$_output/$ovafile"  "$zst_link"
+    axel -q -n 8 -o "$_output/$ovafile"  "$zst_link"
     
     for i in $(seq 1 9) ; do
       _url="${zst_link}.$i"
@@ -233,7 +233,7 @@ if [ ! -e "$_output/$qow2" ]; then
         echo "break"
         break
       fi
-      axel -p -n 8 -o "$_output/${ovafile}.$i"  "$_url"
+      axel -q -n 8 -o "$_output/${ovafile}.$i"  "$_url"
       ls -lah
       cat "$_output/${ovafile}.$i" >>"$_output/$ovafile"
       rm -f "$_output/${ovafile}.$i"
