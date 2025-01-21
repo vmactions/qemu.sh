@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#curl wget screen axel ss lsof netstat zstd ssh
+#curl wget screen axel ss lsof netstat zstd jq ssh
 #ssh client and ssh server(for sshfs mount)
 #rsync
 #nfs-kernel-server
@@ -328,23 +328,40 @@ _qemu_bin="qemu-system-x86_64"
 
 if [ "$_arch" = "aarch64" ]; then
   _qemu_bin="qemu-system-aarch64"
+
+  _efi="$_output/$_name-QEMU_EFI.fd"
+  if [ ! -e "$_efi" ]; then
+    dd if=/dev/zero of="$_efi" bs=1M count=64
+    dd if=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd of="$_efi" conv=notrunc
+  fi
+  _efivars="$_output/$_name-QEMU_EFI_VARS.fd"
+  if [ ! -e "$_efivars" ]; then
+    dd if=/dev/zero of="$_efivars" bs=1M count=64
+  fi
+
   if [ "$_current" = "aarch64" ]; then
-    echo " not implemented"
-    exit 1
+    #run arm64 on arm64
+    if [ -e "/dev/kvm" ]; then
+      _qemu_args="$_qemu_args -machine virt,accel=kvm,gic-version=3 
+    -cpu host,kvm=on,
+    -rtc base=utc 
+    -enable-kvm -global kvm-pit.lost_tick_policy=discard 
+    -global kvm-pit.lost_tick_policy=discard  
+    -drive if=pflash,format=raw,readonly=on,file=${_efi}
+    -drive if=pflash,format=raw,file=${_efivars}
+    "
+    else
+      _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
+    -cpu max
+    -rtc base=utc 
+    -drive if=pflash,format=raw,readonly=on,file=${_efi}
+    -drive if=pflash,format=raw,file=${_efivars}
+    "
+    fi
   else
     #run arm64 on x86
-    _efi="$_output/$_name-QEMU_EFI.fd"
-    if [ ! -e "$_efi" ]; then
-      dd if=/dev/zero of="$_efi" bs=1M count=64
-      dd if=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd of="$_efi" conv=notrunc
-    fi
-    _efivars="$_output/$_name-QEMU_EFI_VARS.fd"
-    if [ ! -e "$_efivars" ]; then
-      dd if=/dev/zero of="$_efivars" bs=1M count=64
-    fi
-    
     _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
-    -cpu cortex-a72 
+    -cpu max
     -rtc base=utc 
     -drive if=pflash,format=raw,readonly=on,file=${_efi}
     -drive if=pflash,format=raw,file=${_efivars}
@@ -363,7 +380,7 @@ else
     -rtc base=utc,driftfix=slew "
     else
       _qemu_args="$_qemu_args -machine pc,accel=tcg,hpet=off,smm=off,graphics=off,vmport=off 
-    -cpu host,l3-cache=on,+hypervisor,migratable=no,+invtsc 
+    -cpu qemu64 
     -rtc base=utc,driftfix=slew "
     fi
     if [ "$_useefi" ]; then
@@ -431,10 +448,8 @@ _initInVM() {
     _tailid="$!"
   fi
   _retry=0
-  while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
-    if [ -z "$_showlog" ]; then
-      echo "vm is booting just wait."
-    fi
+  while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
+    echo "vm is booting just wait."
     sleep 2
     _retry=$(($_retry + 1))
     if [ $_retry -gt 100 ]; then
@@ -460,6 +475,7 @@ _initInVM() {
   echo "
 
 Host $_name  $_sshport
+  LogLevel ERROR
   StrictHostKeyChecking no
   SendEnv   CI  GITHUB_* 
   UserKnownHostsFile=/dev/null
@@ -478,7 +494,7 @@ Host $_name  $_sshport
     echo "Or just:  ssh $_sshport"
     echo "======================================"
   fi
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
+  ssh "${_sshport}" sh <<EOF
 echo 'StrictHostKeyChecking=no' >.ssh/config
 
 echo "Host host" >>.ssh/config
@@ -509,7 +525,7 @@ EOF
 _syncSSHFS() {
   _vhost="$1"
   _vguest="$2"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
+  ssh "${_sshport}" sh <<EOF
 mkdir -p "$_vguest"
 
 if [ "$_os" = "netbsd" ]; then
@@ -546,15 +562,18 @@ _syncNFS() {
   _vhost="$1"
   _vguest="$2"
   _SUDO=""
-  if command -v sudo; then
+  if command -v sudo >/dev/null; then
     _SUDO="sudo"
   fi
-  echo "$_vhost *(rw,async,no_subtree_check,anonuid=$(id -u),anongid=$(id -g))" | $_SUDO tee -a /etc/exports
-  $_SUDO exportfs -a
-  $_SUDO service nfs-server restart
+  _entry="$_vhost *(rw,insecure,async,no_subtree_check,anonuid=$(id -u),anongid=$(id -g))"
+  if ! grep -- "$_vhost" /etc/exports; then
+    echo "$_entry" | $_SUDO tee -a /etc/exports
+    $_SUDO exportfs -a
+    $_SUDO service nfs-server restart
+  fi
   echo "Configuring NFS in VM with default command"
 
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$_hostid" -p "${_sshport}" root@localhost sh <<EOF
+  ssh "${_sshport}" sh <<EOF
 mkdir -p "$_vguest"
 if [ "$_os" = "openbsd" ]; then
   mount -t nfs -o -T 192.168.122.2:$_vhost $_vguest

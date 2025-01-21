@@ -23,7 +23,6 @@ concurrency:
 
 jobs:
   testsshfs:
-    if: ${{ !contains(github.repository, 'solaris') && !contains(github.repository, 'dragonflybsd') && !contains(github.repository, 'omnios')}}
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +40,7 @@ jobs:
         set -ex
         sudo apt-get update && sudo apt-get --no-install-recommends -y install \
         wget curl axel screen \
-        7zip \
+        7zip jq \
         zstd \
         ovmf \
         xz-utils \
@@ -66,9 +65,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ "freebsd", "netbsd", "openbsd"]
+        os: [ "freebsd", "netbsd", "openbsd", "solaris", "dragonflybsd", "omnios"]
         arch: [ "aarch64", ""]
         runs: [ "ubuntu-24.04"]
+        exclude:
+          - os: solaris
+            arch: aarch64
+          - os: dragonflybsd
+            arch: aarch64
+          - os: omnios
+            arch: aarch64
 
     runs-on: ${{ matrix.runs }}
     name: Test nfs ${{ matrix.os }} ${{ matrix.arch }}
@@ -80,7 +86,7 @@ jobs:
         set -ex
         sudo apt-get update && sudo apt-get --no-install-recommends -y install \
         wget curl axel screen \
-        7zip \
+        7zip jq \
         zstd \
         ovmf \
         xz-utils \
