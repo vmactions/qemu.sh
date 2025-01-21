@@ -33,7 +33,8 @@ _sync=sshfs
 #qemu managment port
 _qmon=""
 
-
+#disk type: ide or virtio
+_disktype=""
 
 _workingdir="$_script_home/output"
 
@@ -100,6 +101,10 @@ while [ ${#} -gt 0 ]; do
     _sync="$2"
     shift
     ;;
+  --disktype)
+    _disktype="$2"
+    shift
+    ;;
   *)
     echo "Unknown parameter: $1"
     exit 1
@@ -110,7 +115,7 @@ done
 
 
 if [ -z "$_os" ]; then
-  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--sync sshfs|nfs|rsync] [--uefi] [--detach | -d | --console | -c ]"
+  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--sync sshfs|nfs|rsync] [--disktype ide|virtio] [--uefi] [--detach | -d | --console | -c ]"
   exit 1
 fi
 
@@ -118,6 +123,14 @@ fi
 if [ "$_os" = "freebsd" ]; then
   _useefi=1
 fi
+
+
+_hostarch="$(uname -m)"
+if [ -z "${_arch}" ]; then
+  echo "Use host arch: $_hostarch"
+  _arch="$_hostarch"
+fi
+
 
 if [ "$_arch" = "x86_64" ] || [ "$_arch" = "amd64" ]; then
   _arch=""
@@ -294,12 +307,22 @@ fi
 
 _qowfull="$_output/$qow2"
 
+
+if [ -z "$_disktype" ]; then
+  if [ "$_os" = "dragonflybsd" ]; then
+    _disktype="ide"
+  else
+    _disktype="virtio"
+  fi
+fi
+
+
 _qemu_args=" -serial mon:stdio 
 -name $_name,process=$_name 
 -smp ${_cpu:-2} 
 -m ${_mem:-6144} 
 -netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
--drive file=${_qowfull},format=qcow2,if=virtio "
+-drive file=${_qowfull},format=qcow2,if=${_disktype} "
 
 if [ "$_qmon" ]; then
   _qemu_args="-monitor telnet:localhost:$_qmon,server,nowait,nodelay  $_qemu_args "
@@ -322,7 +345,7 @@ fi
 
 
 
-_current="$(uname -m)"
+
 _qemu_bin="qemu-system-x86_64"
 
 if [ "$_arch" = "aarch64" ]; then
@@ -341,7 +364,7 @@ if [ "$_arch" = "aarch64" ]; then
   _qemu_args="$_qemu_args -device virtio-net-device,netdev=net0 \
   -device virtio-balloon-device "
 
-  if [ "$_current" = "aarch64" ]; then
+  if [ "${_hostarch}" = "aarch64" ]; then
     #run arm64 on arm64
     if [ -e "/dev/kvm" ]; then
       _qemu_args="$_qemu_args -machine virt,accel=kvm,gic-version=3 
@@ -375,7 +398,7 @@ else
   _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0,bus=pci.0,addr=0x3 
   -device virtio-balloon-pci,bus=pci.0,addr=0x6 "
 
-  if [ "$_current" = "x86_64" ]; then
+  if [ "${_hostarch}" = "x86_64" ]; then
     #run x86 on x86
     if [ -e "/dev/kvm" ]; then
       _qemu_args="$_qemu_args -machine pc,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off 
