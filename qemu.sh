@@ -294,11 +294,10 @@ fi
 
 _qowfull="$_output/$qow2"
 
-_qemu_args=" -device virtio-balloon-pci,bus=pci.0,addr=0x6 -serial mon:stdio  
--name $_name,process=$_name     
+_qemu_args=" -serial mon:stdio 
+-name $_name,process=$_name 
 -smp ${_cpu:-2} 
--m ${_mem:-6144}  
--device ${_nc:-e1000},netdev=net0,bus=pci.0,addr=0x3
+-m ${_mem:-6144} 
 -netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
 -drive file=${_qowfull},format=qcow2,if=virtio "
 
@@ -339,6 +338,9 @@ if [ "$_arch" = "aarch64" ]; then
     dd if=/dev/zero of="$_efivars" bs=1M count=64
   fi
 
+  _qemu_args="$_qemu_args -device virtio-net-device,netdev=net0 \
+  -device virtio-balloon-device "
+
   if [ "$_current" = "aarch64" ]; then
     #run arm64 on arm64
     if [ -e "/dev/kvm" ]; then
@@ -370,6 +372,9 @@ if [ "$_arch" = "aarch64" ]; then
   fi
 
 else
+  _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0,bus=pci.0,addr=0x3 
+  -device virtio-balloon-pci,bus=pci.0,addr=0x6 "
+
   if [ "$_current" = "x86_64" ]; then
     #run x86 on x86
     if [ -e "/dev/kvm" ]; then
