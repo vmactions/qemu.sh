@@ -318,7 +318,7 @@ fi
 
 
 _qemu_args=" -serial mon:stdio 
--name $_name,process=$_name 
+-name $_name 
 -smp ${_cpu:-2} 
 -m ${_mem:-6144} 
 -netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
@@ -361,7 +361,7 @@ if [ "$_arch" = "aarch64" ]; then
     dd if=/dev/zero of="$_efivars" bs=1M count=64
   fi
 
-  _qemu_args="$_qemu_args -device virtio-net-device,netdev=net0 \
+  _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0 \
   -device virtio-balloon-device "
 
   if [ "${_hostarch}" = "aarch64" ]; then
