@@ -122,7 +122,7 @@ fi
 if [ "$_arch" = "x86_64" ] || [ "$_arch" = "amd64" ]; then
   _arch=""
 fi
-if [ "$_arch" = "arm" ]; then
+if [ "$_arch" = "arm" ] || [ "$_arch" = "arm64" ]; then
   _arch="aarch64"
 fi
 
@@ -217,7 +217,7 @@ fi
 
 if [ -z "$_builder" ]; then
   _builder=$(echo "$zst_link" | cut -d / -f 8 | tr -d v)
-  echo "get _builder ver: $_builder"
+  echo "Builder ver: $_builder"
 fi
 
 
@@ -294,12 +294,12 @@ fi
 
 _qowfull="$_output/$qow2"
 
-_qemu_args="-device virtio-balloon-pci -serial mon:stdio  
+_qemu_args=" -device virtio-balloon-pci,bus=pci.0,addr=0x6 -serial mon:stdio  
 -name $_name,process=$_name     
 -smp ${_cpu:-2} 
 -m ${_mem:-6144}  
--device ${_nc:-e1000},netdev=hostnet0 
--netdev user,id=hostnet0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
+-device ${_nc:-e1000},netdev=net0,bus=pci.0,addr=0x3
+-netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
 -drive file=${_qowfull},format=qcow2,if=virtio "
 
 if [ "$_qmon" ]; then
