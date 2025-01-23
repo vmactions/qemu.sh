@@ -1,5 +1,5 @@
 
-name: Test Solaris
+name: Test DragonflyBSD
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
       - '*'
     paths:
       - '**.sh'
-      - '.github/workflows/solaris.yml'
+      - '.github/workflows/dragonflybsd.yml'
       - '.github/workflows/nfs.yml'
       - '.github/workflows/sshfs.yml'
 
@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        release: ["11.4", "11.4-gcc"]
+        release: ["6.4.0"]
         arch: [""]
         runs: ["ubuntu-24.04"]
 
@@ -31,7 +31,7 @@ jobs:
     uses: ./.github/workflows/sshfs.yml
     with:
       runs: ${{ matrix.runs }}
-      os: solaris
+      os: dragonflybsd
       release: ${{ matrix.release }}
       arch: ${{ matrix.arch }}
 
