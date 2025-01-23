@@ -1,0 +1,74 @@
+
+name: Test NetBSD
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches:
+      - '*'
+    paths:
+      - '**.sh'
+      - '.github/workflows/netbsd.yml'
+      - '.github/workflows/nfs.yml'
+      - '.github/workflows/sshfs.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testsshfs:
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["9.0", "9.1", "9.2", "9.3", "9.4", "10.0", "10.1"]
+        arch: ["aarch64", ""]
+        runs: ["ubuntu-24.04"]
+        exclude:
+          - release: "9.0"
+            arch: aarch64
+          - release: "9.1"
+            arch: aarch64
+          - release: "9.2"
+            arch: aarch64
+          - release: "9.3"
+            arch: aarch64
+          - release: "9.4"
+            arch: aarch64
+
+    uses: ./.github/workflows/sshfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: netbsd
+      release: ${{ matrix.release }}
+      arch: ${{ matrix.arch }}
+
+
+  testnfs:
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["9.0", "9.1", "9.2", "9.3", "9.4", "10.0", "10.1"]
+        arch: ["aarch64", ""]
+        runs: ["ubuntu-24.04"]
+        exclude:
+          - release: "9.0"
+            arch: aarch64
+          - release: "9.1"
+            arch: aarch64
+          - release: "9.2"
+            arch: aarch64
+          - release: "9.3"
+            arch: aarch64
+          - release: "9.4"
+            arch: aarch64
+
+    uses: ./.github/workflows/nfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: netbsd
+      release: ${{ matrix.release }}
+      arch: ${{ matrix.arch }}
+   
