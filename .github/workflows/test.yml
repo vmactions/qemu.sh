@@ -10,7 +10,7 @@ on:
       - '*'
     paths:
       - '**.sh'
-      - '.github/workflows/test.yml'
+      - '.github/workflows/*.yml'
 
 
 
@@ -32,15 +32,13 @@ jobs:
 
     runs-on: ${{ matrix.runs }}
     name: Test sshfs ${{ matrix.os }} ${{ matrix.arch }}
-    uses: ./.github/workflows/sshfs.yml
-    with:
-      runs: ${{ matrix.runs }}
-      os: ${{ matrix.os }}
-      arch: ${{ matrix.arch }}
-   
-
-
-
+    steps:
+      - name: Call SSHFS Workflow
+        uses: ./.github/workflows/sshfs.yml
+        with:
+          runs: ${{ matrix.runs }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
 
   testnfs:
     strategy:
@@ -58,17 +56,11 @@ jobs:
             arch: aarch64
 
     runs-on: ${{ matrix.runs }}
-    uses: ./.github/workflows/nfs.yml
-    with:
-      runs: ${{ matrix.runs }}
-      os: ${{ matrix.os }}
-      arch: ${{ matrix.arch }}
-
-
-
-
-
-
-
-
-
+    name: Test NFS ${{ matrix.os }} ${{ matrix.arch }}
+    steps:
+      - name: Call NFS Workflow
+        uses: ./.github/workflows/nfs.yml
+        with:
+          runs: ${{ matrix.runs }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
