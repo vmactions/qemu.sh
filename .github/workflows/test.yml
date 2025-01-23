@@ -32,14 +32,12 @@ jobs:
 
     runs-on: ${{ matrix.runs }}
     name: Test sshfs ${{ matrix.os }} ${{ matrix.arch }}
-    steps:
-      - name: Call sshfs
-        uses: ./.github/workflows/sshfs.yml
-        with:
-          runs: ${{ matrix.runs }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-
+    uses: ./.github/workflows/sshfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
+   
 
 
 
@@ -60,14 +58,11 @@ jobs:
             arch: aarch64
 
     runs-on: ${{ matrix.runs }}
-    name: Test nfs ${{ matrix.os }} ${{ matrix.arch }}
-    steps:
-      - name: Call nfs
-        uses: ./.github/workflows/nfs.yml
-        with:
-          runs: ${{ matrix.runs }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
+    uses: ./.github/workflows/nfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
 
 
 
