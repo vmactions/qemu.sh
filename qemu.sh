@@ -202,6 +202,9 @@ if [ -z "$_release" ]; then
     _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
   else
     _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+    if [ -z "$_release" ]; then
+      _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+    fi
   fi
 fi
 
@@ -215,6 +218,9 @@ if [ -z "$zst_link" ]; then
   
   if [ -z "$_arch" ] || [ "$_arch" = "x86_64" ]; then
     zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_os}-${_release}.qcow2.zst | sort -r | head -1)"
+    if [ -z "$zst_link" ]; then
+      zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_os}-${_release}.qcow2.xz | sort -r | head -1)"
+    fi
   else
     zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_os}-${_release}-${_arch}.qcow2.zst| sort -r | head -1)"
   fi
@@ -271,8 +277,15 @@ if [ ! -e "$_output/$qow2" ]; then
 fi
 
 
+_name="$_os-$_release"
+if [ "$_arch" ]; then
+  _name="$_os-$_release-$_arch"
+fi
+
+
 ###############################################
-_hostid_link="$(echo "$zst_link" | sed "s/.qcow2.zst/-host.id_rsa/")"
+_hostid_link="https://github.com/vmactions/${_os}-builder/releases/download/v${_builder}/${_name}-host.id_rsa"
+
 echo "Host id link: $_hostid_link"
 _hostid="$_output/$(echo "$_hostid_link" | rev | cut -d / -f 1 | rev)"
 echo "Host id file: $_hostid"
@@ -283,7 +296,8 @@ if [ ! -e "$_hostid" ]; then
 fi
 
 
-_vmpub_link="$(echo "$zst_link" | sed "s/.qcow2.zst/-id_rsa.pub/")"
+_vmpub_link="https://github.com/vmactions/${_os}-builder/releases/download/v${_builder}/${_name}-id_rsa.pub"
+
 echo "VM pub key link: $_vmpub_link"
 _vmpub="$_output/$(echo "$_vmpub_link" | rev | cut -d / -f 1 | rev)"
 if [ ! -e "$_vmpub" ]; then
@@ -300,10 +314,6 @@ ls -lah "$_output"
 
 
 
-_name="$_os-$_release"
-if [ "$_arch" ]; then
-  _name="$_os-$_release-$_arch"
-fi
 
 _qowfull="$_output/$qow2"
 
@@ -377,7 +387,7 @@ if [ "$_arch" = "aarch64" ]; then
     "
     else
       _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
-    -cpu max
+    -cpu host
     -rtc base=utc 
     -drive if=pflash,format=raw,readonly=on,file=${_efi}
     -drive if=pflash,format=raw,file=${_efivars}

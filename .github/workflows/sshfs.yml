@@ -1,0 +1,55 @@
+name: SSHFS
+
+on:
+  workflow_call:
+    inputs:
+      runs:
+        description: "Runs on"
+        required: false
+        type: string
+      os:
+        description: "Test os"
+        required: true
+        type: string
+      arch:
+        description: "Test arch"
+        required: true
+        type: string
+      release:
+        description: "Test release"
+        required: false
+        type: string
+
+
+
+jobs:
+  testsshfs:
+    runs-on: ${{ inputs.runs }}
+    name: Test sshfs ${{ inputs.os }} ${{ inputs.arch }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Test 
+      id: test
+      run: |
+        set -ex
+        sudo apt-get update && sudo apt-get --no-install-recommends -y install \
+        wget curl axel screen \
+        7zip jq \
+        zstd \
+        ovmf \
+        xz-utils \
+        qemu-utils \
+        ca-certificates \
+        qemu-system-x86 \
+        qemu-system-arm qemu-efi-aarch64
+        
+        #enable kvm for current runner
+        sudo chmod 666 /dev/kvm
+        
+        bash qemu.sh --os "${{ inputs.os }}" --arch "${{ inputs.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022
+        # We use the ssh port as an alias to the vm, so we can use 'ssh $port' to login
+        ssh 10022 ls /mnt/host
+       
+
+
+

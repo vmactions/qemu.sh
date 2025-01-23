@@ -33,29 +33,12 @@ jobs:
     runs-on: ${{ matrix.runs }}
     name: Test sshfs ${{ matrix.os }} ${{ matrix.arch }}
     steps:
-    - uses: actions/checkout@v4
-    - name: Test 
-      id: test
-      run: |
-        set -ex
-        sudo apt-get update && sudo apt-get --no-install-recommends -y install \
-        wget curl axel screen \
-        7zip jq \
-        zstd \
-        ovmf \
-        xz-utils \
-        qemu-utils \
-        ca-certificates \
-        qemu-system-x86 \
-        qemu-system-arm qemu-efi-aarch64
-        
-        #enable kvm for current runner
-        sudo chmod 666 /dev/kvm
-        
-        bash qemu.sh --os "${{ matrix.os }}" --arch "${{ matrix.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022
-        # We use the ssh port as an alias to the vm, so we can use 'ssh $port' to login
-        ssh 10022 ls /mnt/host
-       
+      - name: Call sshfs
+        uses: ./.github/workflows/sshfs.yml
+        with:
+          runs: ${{ matrix.runs }}
+          os:${{ matrix.os }}
+          arch:${{ matrix.arch }}
 
 
 
@@ -79,30 +62,12 @@ jobs:
     runs-on: ${{ matrix.runs }}
     name: Test nfs ${{ matrix.os }} ${{ matrix.arch }}
     steps:
-    - uses: actions/checkout@v4
-    - name: Test 
-      id: test
-      run: |
-        set -ex
-        sudo apt-get update && sudo apt-get --no-install-recommends -y install \
-        wget curl axel screen \
-        7zip jq \
-        zstd \
-        ovmf \
-        xz-utils \
-        qemu-utils \
-        ca-certificates \
-        qemu-system-x86 \
-        qemu-system-arm qemu-efi-aarch64  nfs-kernel-server rsync
-        
-        #enable kvm for current runner
-        sudo chmod 666 /dev/kvm
-        
-        bash qemu.sh --os "${{ matrix.os }}" --arch "${{ matrix.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022 --sync nfs
-        # We use the ssh port as an alias to the vm, so we can use 'ssh $port' to login
-        ssh 10022 ls /mnt/host
-       
-
+      - name: Call nfs
+        uses: ./.github/workflows/nfs.yml
+        with:
+          runs: ${{ matrix.runs }}
+          os:${{ matrix.os }}
+          arch:${{ matrix.arch }}
 
 
 
