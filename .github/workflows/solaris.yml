@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sshfs:
+  nfs:
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +28,7 @@ jobs:
         runs: ["ubuntu-24.04"]
 
 
-    uses: ./.github/workflows/sshfs.yml
+    uses: ./.github/workflows/nfs.yml
     with:
       runs: ${{ matrix.runs }}
       os: solaris
