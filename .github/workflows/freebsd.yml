@@ -43,7 +43,8 @@ jobs:
   testnfs:
     strategy:
       fail-fast: false
-      release: ["12.4", "13.2", "13.3", "13.4", "14.0", "14.1", "14.2", "15.0"]
+      matrix:
+        release: ["12.4", "13.2", "13.3", "13.4", "14.0", "14.1", "14.2", "15.0"]
         arch: ["aarch64", ""]
         runs: ["ubuntu-24.04"]
         exclude:
