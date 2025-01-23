@@ -1,0 +1,60 @@
+
+name: Test FreeBSD
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches:
+      - '*'
+    paths:
+      - '**.sh'
+      - '.github/workflows/*.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testsshfs:
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["12.4", "13.2", "13.3", "13.4", "14.0", "14.1", "14.2", "15.0"]
+        arch: ["aarch64", ""]
+        runs: ["ubuntu-24.04"]
+        exclude:
+          - release: 12.4
+            arch: aarch64
+          - release: 13.2
+            arch: aarch64
+          - release: 14.0
+            arch: aarch64
+
+    uses: ./.github/workflows/sshfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: freebsd
+      arch: ${{ matrix.arch }}
+
+  testnfs:
+    strategy:
+      fail-fast: false
+      release: ["12.4", "13.2", "13.3", "13.4", "14.0", "14.1", "14.2", "15.0"]
+        arch: ["aarch64", ""]
+        runs: ["ubuntu-24.04"]
+        exclude:
+          - release: 12.4
+            arch: aarch64
+          - release: 13.2
+            arch: aarch64
+          - release: 14.0
+            arch: aarch64
+
+    uses: ./.github/workflows/nfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
+   
