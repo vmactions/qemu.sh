@@ -10,7 +10,9 @@ on:
       - '*'
     paths:
       - '**.sh'
-      - '.github/workflows/*.yml'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/nfs.yml'
+      - '.github/workflows/sshfs.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
