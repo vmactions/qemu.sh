@@ -1,0 +1,40 @@
+
+name: Test Solaris
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches:
+      - '*'
+    paths:
+      - '**.sh'
+      - '.github/workflows/solaris.yml'
+      - '.github/workflows/nfs.yml'
+      - '.github/workflows/sshfs.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sshfs:
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["11.4", "11.4-gcc"]
+        arch: [""]
+        runs: ["ubuntu-24.04"]
+
+
+    uses: ./.github/workflows/sshfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: openbsd
+      release: ${{ matrix.release }}
+      arch: ${{ matrix.arch }}
+
+
+
+   
