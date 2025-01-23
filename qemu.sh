@@ -217,12 +217,12 @@ if [ -z "$zst_link" ]; then
   fi
   
   if [ -z "$_arch" ] || [ "$_arch" = "x86_64" ]; then
-    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_os}-${_release}.qcow2.zst | sort -r | head -1)"
+    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep "${_os}-${_release}".qcow2.zst'$' | sort -r | head -1)"
     if [ -z "$zst_link" ]; then
-      zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_os}-${_release}.qcow2.xz | sort -r | head -1)"
+      zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep "${_os}-${_release}".qcow2.xz'$' | sort -r | head -1)"
     fi
   else
-    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_os}-${_release}-${_arch}.qcow2.zst| sort -r | head -1)"
+    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep "${_os}-${_release}-${_arch}".qcow2.zst'$'| sort -r | head -1)"
   fi
 fi
 
