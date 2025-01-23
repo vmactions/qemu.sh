@@ -36,7 +36,9 @@ jobs:
     with:
       runs: ${{ matrix.runs }}
       os: freebsd
+      release: ${{ matrix.release }}
       arch: ${{ matrix.arch }}
+
 
   testnfs:
     strategy:
@@ -55,6 +57,7 @@ jobs:
     uses: ./.github/workflows/nfs.yml
     with:
       runs: ${{ matrix.runs }}
-      os: ${{ matrix.os }}
+      os: freebsd
+      release: ${{ matrix.release }}
       arch: ${{ matrix.arch }}
    
