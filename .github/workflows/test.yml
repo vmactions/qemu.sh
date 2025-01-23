@@ -4,7 +4,7 @@ name: Test
 on:
   workflow_dispatch:
   release:
-    types: [ published ]
+    types: [published]
   push:
     branches:
       - '*'
@@ -12,29 +12,24 @@ on:
       - '**.sh'
       - '.github/workflows/*.yml'
 
-
-
-
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-
 
 jobs:
   testsshfs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ "freebsd", "netbsd", "openbsd"]
-        arch: [ "aarch64", ""]
-        runs: [ "ubuntu-24.04"]
+        os: ["freebsd", "netbsd", "openbsd"]
+        arch: ["aarch64", ""]
+        runs: ["ubuntu-24.04"]
 
     runs-on: ${{ matrix.runs }}
-    name: Test sshfs ${{ matrix.os }} ${{ matrix.arch }}
+    name: Test SSHFS ${{ matrix.os }} ${{ matrix.arch }}
     steps:
       - name: Call SSHFS Workflow
-        uses: ./.github/workflows/sshfs.yml
+        uses: vmactions/qemu.sh/.github/workflows/sshfs.yml@main
         with:
           runs: ${{ matrix.runs }}
           os: ${{ matrix.os }}
@@ -44,9 +39,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ "freebsd", "netbsd", "openbsd", "solaris", "dragonflybsd", "omnios"]
-        arch: [ "aarch64", ""]
-        runs: [ "ubuntu-24.04"]
+        os: ["freebsd", "netbsd", "openbsd", "solaris", "dragonflybsd", "omnios"]
+        arch: ["aarch64", ""]
+        runs: ["ubuntu-24.04"]
         exclude:
           - os: solaris
             arch: aarch64
@@ -59,7 +54,7 @@ jobs:
     name: Test NFS ${{ matrix.os }} ${{ matrix.arch }}
     steps:
       - name: Call NFS Workflow
-        uses: ./.github/workflows/nfs.yml
+        uses: vmactions/qemu.sh/.github/workflows/nfs.yml@main
         with:
           runs: ${{ matrix.runs }}
           os: ${{ matrix.os }}
