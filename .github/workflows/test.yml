@@ -37,8 +37,8 @@ jobs:
         uses: ./.github/workflows/sshfs.yml
         with:
           runs: ${{ matrix.runs }}
-          os:${{ matrix.os }}
-          arch:${{ matrix.arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
 
 
 
@@ -66,8 +66,8 @@ jobs:
         uses: ./.github/workflows/nfs.yml
         with:
           runs: ${{ matrix.runs }}
-          os:${{ matrix.os }}
-          arch:${{ matrix.arch }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
 
 
 
