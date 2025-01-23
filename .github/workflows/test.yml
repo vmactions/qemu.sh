@@ -26,14 +26,11 @@ jobs:
         runs: ["ubuntu-24.04"]
 
     runs-on: ${{ matrix.runs }}
-    name: Test SSHFS ${{ matrix.os }} ${{ matrix.arch }}
-    steps:
-      - name: Call SSHFS Workflow
-        uses: vmactions/qemu.sh/.github/workflows/sshfs.yml@main
-        with:
-          runs: ${{ matrix.runs }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
+    uses: vmactions/qemu.sh/.github/workflows/sshfs.yml@main
+    with:
+      runs: ${{ matrix.runs }}
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
 
   testnfs:
     strategy:
@@ -51,11 +48,9 @@ jobs:
             arch: aarch64
 
     runs-on: ${{ matrix.runs }}
-    name: Test NFS ${{ matrix.os }} ${{ matrix.arch }}
-    steps:
-      - name: Call NFS Workflow
-        uses: vmactions/qemu.sh/.github/workflows/nfs.yml@main
-        with:
-          runs: ${{ matrix.runs }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
+    uses: vmactions/qemu.sh/.github/workflows/nfs.yml@main
+    with:
+      runs: ${{ matrix.runs }}
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
+   
