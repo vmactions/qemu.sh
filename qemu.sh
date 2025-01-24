@@ -17,7 +17,10 @@ _arch=""
 
 _mem="6144"
 _cpu="2"
+
+#virtio-net-device
 _nc="e1000"
+
 _sshport="10022"
 #attach to ssh console by default
 _console=""
@@ -485,20 +488,6 @@ _initInVM() {
     tail -F "$CONSOLE_FILE"&
     _tailid="$!"
   fi
-  _retry=0
-  while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
-    echo "vm is booting just wait."
-    sleep 2
-    _retry=$(($_retry + 1))
-    if [ $_retry -gt 100 ]; then
-      echo "Boot failed."
-      return 1
-    fi
-  done
-  if [ "$_showlog" ]; then
-    kill "$_tailid"
-  fi
-  echo "Boot ready"
 
   #init ssh
   mkdir -p ~/.ssh
@@ -525,6 +514,21 @@ Host $_name  $_sshport
 ">~/.ssh/config.d/$_name.conf
   chmod 600 ~/.ssh/config
 
+  _retry=0
+  while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
+    echo "vm is booting just wait."
+    sleep 2
+    _retry=$(($_retry + 1))
+    if [ $_retry -gt 300 ]; then
+      echo "Boot failed."
+      return 1
+    fi
+  done
+  if [ "$_showlog" ]; then
+    kill "$_tailid"
+  fi
+  echo "Boot ready"
+
   if [ "$_console" ]; then
     echo "======================================"
     echo ""
@@ -532,13 +536,13 @@ Host $_name  $_sshport
     echo "Or just:  ssh $_sshport"
     echo "======================================"
   fi
-  ssh "${_sshport}" sh <<EOF
-echo 'StrictHostKeyChecking=no' >.ssh/config
+  ssh "${_sshport}" sh "cat - >.ssh/config" <<EOF
+StrictHostKeyChecking=no
 
-echo "Host host" >>.ssh/config
-echo "     HostName  192.168.122.2" >>.ssh/config
-echo "     User $USER" >>.ssh/config
-echo "     ServerAliveInterval 1" >>.ssh/config
+Host host
+  HostName  192.168.122.2
+  User $USER
+  ServerAliveInterval 1
 
 EOF
 
@@ -548,12 +552,37 @@ EOF
     _vguest="$(echo "$_vpath" | cut -d : -f 2)"
     echo "Mount to guest dir: $_vguest"
 
+    _retry=0
     if [ "$_sync" = "sshfs" ] || [ -z "$_sync" ]; then
-      _syncSSHFS "$_vhost" "$_vguest"
+      while ! _syncSSHFS "$_vhost" "$_vguest"; do
+        echo "error sshfs, let try again"
+        sleep 2
+        _retry=$(($_retry + 1))
+        if [ $_retry -gt 10 ]; then
+          echo "sshfs failed."
+          return 1
+        fi
+      done
     elif [ "$_sync" = "nfs" ]; then
-      _syncNFS "$_vhost" "$_vguest"
+      while ! _syncNFS "$_vhost" "$_vguest"; do
+        echo "error nfs, let try again"
+        sleep 2
+        _retry=$(($_retry + 1))
+        if [ $_retry -gt 10 ]; then
+          echo "nfs failed."
+          return 1
+        fi
+      done
     else
-      _syncRSYNC "$_vhost" "$_vguest"
+      while ! _syncRSYNC "$_vhost" "$_vguest"; do
+        echo "error rsync, let try again"
+        sleep 2
+        _retry=$(($_retry + 1))
+        if [ $_retry -gt 10 ]; then
+          echo "rsync failed."
+          return 1
+        fi
+      done
     fi
 
   fi
@@ -646,13 +675,14 @@ else
   if [ -z "$_detach" ]; then
     ssh "$_name"
   fi
+  echo "======================================"
+  echo "The vm is still running."
+  echo "You can login the vm with:  ssh $_name"
+  echo "Or just:  ssh $_sshport"
+  echo "======================================"
 fi
 
 
-echo "======================================"
-echo "The vm is still running."
-echo "You can login the vm with:  ssh $_name"
-echo "Or just:  ssh $_sshport"
-echo "======================================"
+
 
 
