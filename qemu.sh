@@ -536,7 +536,7 @@ Host $_name  $_sshport
     echo "Or just:  ssh $_sshport"
     echo "======================================"
   fi
-  ssh "${_sshport}" sh "cat - >.ssh/config" <<EOF
+  ssh "${_sshport}" "cat - >.ssh/config" <<EOF
 StrictHostKeyChecking=no
 
 Host host
