@@ -17,4 +17,6 @@
 
 To do list:
 1. Use user space nfsserver https://github.com/nfs-ganesha/nfs-ganesha
+2. Add sendenv
+3. Add nat
 
