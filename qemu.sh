@@ -398,8 +398,12 @@ if [ "$_arch" = "aarch64" ]; then
     fi
   else
     #run arm64 on x86
+    _cpumode="max"
+    if [ "$_name" = "openbsd-7.7-aarch64" ]; then
+      _cpumode="cortex-a76"
+    fi
     _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
-    -cpu max
+    -cpu $_cpumode
     -rtc base=utc 
     -drive if=pflash,format=raw,readonly=on,file=${_efi}
     -drive if=pflash,format=raw,file=${_efivars}
