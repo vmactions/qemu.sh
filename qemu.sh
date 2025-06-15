@@ -183,9 +183,9 @@ if [ "$_builder" ]; then
     _metafile="$working/${_os}/meta.json"
     curl -L "$_meta" >"$_metafile"
     if [ "$_arch" ]; then
-     _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
+     _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
     else
-     _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+     _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
     fi
   fi
   if [ "$_arch" ]; then
@@ -202,11 +202,11 @@ allReleases="$working/${_os}/all.json"
 if [ -z "$_release" ]; then
   curl -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
   if [ "$_arch" ]; then
-    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
+    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
   else
-    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
     if [ -z "$_release" ]; then
-      _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+      _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
     fi
   fi
 fi
@@ -220,12 +220,12 @@ if [ -z "$zst_link" ]; then
   fi
   
   if [ -z "$_arch" ] || [ "$_arch" = "x86_64" ]; then
-    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep "${_os}-${_release}".qcow2.zst'$' | sort -r | head -1)"
+    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}".qcow2.zst'$' | sort -r | head -1)"
     if [ -z "$zst_link" ]; then
-      zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep "${_os}-${_release}".qcow2.xz'$' | sort -r | head -1)"
+      zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}".qcow2.xz'$' | sort -r | head -1)"
     fi
   else
-    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep "${_os}-${_release}-${_arch}".qcow2.zst'$'| sort -r | head -1)"
+    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}-${_arch}".qcow2.zst'$'| sort -r | head -1)"
   fi
 fi
 
@@ -399,7 +399,7 @@ if [ "$_arch" = "aarch64" ]; then
   else
     #run arm64 on x86
     _cpumode="max"
-    if [ "$_name" = "openbsd-7.7-aarch64" ]; then
+    if [ "${_name,,}" = "openbsd-7.7-aarch64" ]; then
       _cpumode="cortex-a76"
     fi
     _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
