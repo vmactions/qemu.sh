@@ -410,10 +410,10 @@ if [ "$_arch" = "aarch64" ]; then
     fi
   else
     #run arm64 on x86
+    if [ "${_os,,}" = "openbsd" ] && [ -z "$_cputype" ]; then
+      _cputype="cortex-a57"
+    fi
     _cpumode="${_cputype:-cortex-a72}"
-    #if [ "${_name,,}" = "openbsd-7.7-aarch64" ]; then
-    #  _cpumode="cortex-a76"
-    #fi
     _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
     -cpu $_cpumode
     -rtc base=utc 
