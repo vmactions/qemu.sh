@@ -18,6 +18,14 @@ _arch=""
 _mem="6144"
 _cpu="2"
 
+#cortex-a57
+#cortex-a72
+#cortex-a76
+#host
+#max
+_cputype=""
+
+
 #virtio-net-device
 _nc="e1000"
 
@@ -61,6 +69,10 @@ while [ ${#} -gt 0 ]; do
     ;;
   --cpu)
     _cpu="$2"
+    shift
+    ;;
+  --cpu-type)
+    _cputype="$2"
     shift
     ;;
   --workingdir)
@@ -118,7 +130,7 @@ done
 
 
 if [ -z "$_os" ]; then
-  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--sync sshfs|nfs|rsync] [--disktype ide|virtio] [--uefi] [--detach | -d | --console | -c ]"
+  echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--cpu-type 'cortex-a72'] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--sync sshfs|nfs|rsync] [--disktype ide|virtio] [--uefi] [--detach | -d | --console | -c ]"
   exit 1
 fi
 
@@ -398,10 +410,10 @@ if [ "$_arch" = "aarch64" ]; then
     fi
   else
     #run arm64 on x86
-    _cpumode="max"
-    if [ "${_name,,}" = "openbsd-7.7-aarch64" ]; then
-      _cpumode="cortex-a76"
-    fi
+    _cpumode="${_cputype:-cortex-a72}"
+    #if [ "${_name,,}" = "openbsd-7.7-aarch64" ]; then
+    #  _cpumode="cortex-a76"
+    #fi
     _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
     -cpu $_cpumode
     -rtc base=utc 
