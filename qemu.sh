@@ -555,7 +555,7 @@ Host $_name  $_sshport
   if [ "$_showlog" ]; then
     kill "$_tailid"
   fi
-  echo "Boot ready"
+  echo "OK Ready!"
 
   if [ "$_console" ]; then
     echo "======================================"
