@@ -222,6 +222,7 @@ if [ -z "$_release" ]; then
       _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
     fi
   fi
+  _release=${_release%%.qcow2*}
 fi
 
 echo "Using release: $_release"
