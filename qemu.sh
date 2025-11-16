@@ -344,7 +344,11 @@ fi
 
 if [ -z "$_nc" ]; then
   if [ "$_os" = "openbsd" ]; then
-    _nc="virtio-net-pci"
+    if [ "$_release" = "7.3" ] || [ "$_release" = "7.4" ] || [ "$_release" = "7.5" ] || [ "$_release" = "7.6" ]; then
+      _nc="e1000"
+    else
+      _nc="virtio-net-pci"
+    fi
   fi
 fi
 
