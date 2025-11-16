@@ -12,6 +12,7 @@
 
 [![Test OmniOS](https://github.com/vmactions/qemu.sh/actions/workflows/omnios.yml/badge.svg)](https://github.com/vmactions/qemu.sh/actions/workflows/omnios.yml)
 
+[![Test OpenIndiana](https://github.com/vmactions/qemu.sh/actions/workflows/openindiana.yml/badge.svg)](https://github.com/vmactions/qemu.sh/actions/workflows/openindiana.yml)
 
 
 
