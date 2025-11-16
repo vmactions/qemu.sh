@@ -53,11 +53,11 @@ jobs:
         bash qemu.sh --os "${{ inputs.os }}" --release "${{ inputs.release }}" --arch "${{ inputs.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022 --nc "${{ inputs.nc }}" --sync nfs
         # We use the ssh port as an alias to the vm, so we can use 'ssh $port' to login
         ssh 10022 ls /mnt/host
-       
-
-
-
-
+        touch justcheck.txt
+        if ! ssh 10022 ls /mnt/host | grep justcheck.txt; then
+          echo "file mount failed"
+          exit 1
+        fi
 
 
 
