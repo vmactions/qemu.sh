@@ -274,7 +274,7 @@ if [ ! -e "$_output/$qow2" ]; then
       _url="${zst_link}.$i"
       echo "Checking $_url"
       if ! check_url_exists "$_url"; then
-        echo "break"
+        echo "Done"
         break
       fi
       axel -q -n 8 -o "$_output/${ovafile}.$i"  "$_url"
