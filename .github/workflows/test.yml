@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["freebsd", "netbsd", "openbsd", "solaris", "dragonflybsd", "omnios"]
+        os: ["freebsd", "netbsd", "openbsd", "solaris", "dragonflybsd", "omnios", "openindiana"]
         arch: ["aarch64", ""]
         runs: ["ubuntu-24.04"]
         exclude:
@@ -46,6 +46,8 @@ jobs:
           - os: dragonflybsd
             arch: aarch64
           - os: omnios
+            arch: aarch64
+          - os: openindiana
             arch: aarch64
 
     uses: ./.github/workflows/nfs.yml

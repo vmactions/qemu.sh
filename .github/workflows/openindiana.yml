@@ -1,0 +1,40 @@
+
+name: Test OpenIndiana
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches:
+      - '*'
+    paths:
+      - '**.sh'
+      - '.github/workflows/openindiana.yml'
+      - '.github/workflows/nfs.yml'
+      - '.github/workflows/sshfs.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nfs:
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["202510"]
+        arch: [""]
+        runs: ["ubuntu-24.04"]
+
+
+    uses: ./.github/workflows/nfs.yml
+    with:
+      runs: ${{ matrix.runs }}
+      os: openindiana
+      release: ${{ matrix.release }}
+      arch: ${{ matrix.arch }}
+
+
+
+   
