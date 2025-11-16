@@ -72,7 +72,6 @@ jobs:
       os: openbsd
       release: ${{ matrix.release }}
       arch: ${{ matrix.arch }}
-      nic: virtio-net-device
 
   testnfs:
     strategy:
@@ -88,4 +87,3 @@ jobs:
       os: openbsd
       release: ${{ matrix.release }}
       arch: ${{ matrix.arch }}
-      nic: virtio-net-device

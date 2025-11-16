@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#curl wget screen axel ss lsof netstat zstd jq ssh
+#curl screen axel ss lsof netstat zstd jq ssh
 #ssh client and ssh server(for sshfs mount)
 #rsync
 #nfs-kernel-server
@@ -26,8 +26,9 @@ _cpu="2"
 _cputype=""
 
 
-#virtio-net-device
-_nc="e1000"
+#virtio-net-pci
+#e1000
+_nc=""
 
 _sshport="10022"
 #attach to ssh console by default
@@ -216,9 +217,9 @@ if [ -z "$_release" ]; then
   if [ "$_arch" ]; then
     _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
   else
-    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
     if [ -z "$_release" ]; then
-      _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+      _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
     fi
   fi
 fi
@@ -341,6 +342,12 @@ if [ -z "$_disktype" ]; then
   fi
 fi
 
+if [ -z "$_nc" ]; then
+  if [ "$_os" = "openbsd" ]; then
+    _nc="virtio-net-pci"
+  fi
+fi
+
 
 _qemu_args=" -serial mon:stdio 
 -name $_name 
@@ -430,13 +437,13 @@ else
   if [ "${_hostarch}" = "x86_64" ]; then
     #run x86 on x86
     if [ -e "/dev/kvm" ]; then
-      _qemu_args="$_qemu_args -machine pc,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off 
+      _qemu_args="$_qemu_args -machine pc-i440fx-noble,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off 
     -enable-kvm -global kvm-pit.lost_tick_policy=discard 
     -global kvm-pit.lost_tick_policy=discard 
     -cpu host,kvm=on,l3-cache=on,+hypervisor,migratable=no,+invtsc 
     -rtc base=utc,driftfix=slew "
     else
-      _qemu_args="$_qemu_args -machine pc,accel=tcg,hpet=off,smm=off,graphics=off,vmport=off 
+      _qemu_args="$_qemu_args -machine pc-i440fx-noble,usb=off,dump-guest-core=off,hpet=off,acpi=on
     -cpu qemu64 
     -rtc base=utc,driftfix=slew "
     fi
@@ -532,7 +539,7 @@ Host $_name  $_sshport
 
   _retry=0
   while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
-    echo "vm is booting just wait."
+    echo "===> vm $_name is booting just wait."
     sleep 2
     _retry=$(($_retry + 1))
     if [ $_retry -gt 300 ]; then
