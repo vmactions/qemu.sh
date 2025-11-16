@@ -194,7 +194,7 @@ if [ "$_builder" ]; then
   if [ -z "$_release" ]; then
     _meta="https://api.github.com/repos/$builder/releases/tags/v$_builder"
     _metafile="$working/${_os}/meta.json"
-    curl -L "$_meta" >"$_metafile"
+    curl --retry 5 --retry-delay 3  -L "$_meta" >"$_metafile"
     if [ "$_arch" ]; then
      _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
     else
@@ -213,7 +213,7 @@ allReleases="$working/${_os}/all.json"
 
 
 if [ -z "$_release" ]; then
-  curl -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
+  curl --retry 5 --retry-delay 3  -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
   if [ "$_arch" ]; then
     _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
   else
@@ -230,7 +230,7 @@ echo "Using release: $_release"
   
 if [ -z "$zst_link" ]; then
   if [ ! -e "$allReleases" ]; then
-    curl -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
+    curl --retry 5 --retry-delay 3  -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
   fi
   
   if [ -z "$_arch" ] || [ "$_arch" = "x86_64" ]; then
@@ -308,7 +308,7 @@ _hostid="$_output/$(echo "$_hostid_link" | rev | cut -d / -f 1 | rev)"
 echo "Host id file: $_hostid"
 
 if [ ! -e "$_hostid" ]; then
- curl -L  "$_hostid_link" >"$_hostid"
+ curl --retry 5 --retry-delay 3  -L  "$_hostid_link" >"$_hostid"
  chmod 600 "$_hostid"
 fi
 
@@ -319,7 +319,7 @@ echo "VM pub key link: $_vmpub_link"
 _vmpub="$_output/$(echo "$_vmpub_link" | rev | cut -d / -f 1 | rev)"
 if [ ! -e "$_vmpub" ]; then
   echo "VM pub key file: $_vmpub"
-  curl -L  "$_vmpub_link" >"$_vmpub"
+  curl --retry 5 --retry-delay 3  -L  "$_vmpub_link" >"$_vmpub"
 fi
 
 
