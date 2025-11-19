@@ -7,9 +7,7 @@
 
 set -e
 
-
 _script_home="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 
 _os=""
 _release=""
@@ -25,7 +23,6 @@ _cpu="2"
 #max
 _cputype=""
 
-
 #virtio-net-pci
 #e1000
 _nc=""
@@ -39,7 +36,7 @@ _vpath=""
 #number: 0, 1, 2  or "off"
 _vnc=""
 
-#sync: sshfs, nfs
+#sync: sshfs, nfs, rsync
 _sync=sshfs
 
 #qemu managment port
@@ -57,7 +54,6 @@ if [ "$GOOGLE_CLOUD_SHELL" = "true" ]; then
   mkdir -p /tmp/qemu.sh
   _workingdir=/tmp/qemu.sh
 fi
-
 
 while [ ${#} -gt 0 ]; do
   case "${1}" in
@@ -142,24 +138,20 @@ while [ ${#} -gt 0 ]; do
   shift 1
 done
 
-
 if [ -z "$_os" ]; then
   echo "use parameters:  --os freebsd  [--release 15.0] [--arch aarch64] [--cpu 2] [--cpu-type 'cortex-a72'] [--mem 6144] [--sshport 10022] [-v /paht/host:/path/vm] [--workingdir /path/to/data] [--vnc 'num' |off] [--sync sshfs|nfs|rsync] [--disktype ide|virtio] [--uefi] [--detach | -d | --console | -c ]"
   exit 1
 fi
 
-
 if [ "$_os" = "freebsd" ]; then
   _useefi=1
 fi
-
 
 _hostarch="$(uname -m)"
 if [ -z "${_arch}" ]; then
   echo "Use host arch: $_hostarch"
   _arch="$_hostarch"
 fi
-
 
 if [ "$_arch" = "x86_64" ] || [ "$_arch" = "amd64" ]; then
   _arch=""
@@ -168,15 +160,8 @@ if [ "$_arch" = "arm" ] || [ "$_arch" = "arm64" ]; then
   _arch="aarch64"
 fi
 
-
-
 builder="vmactions/${_os}-builder"
-
-
-
 working="$_workingdir"
-
-
 
 _endswith() {
   _str="$1"
@@ -194,38 +179,38 @@ check_url_exists() {
   fi
 }
 
-
 find_free_port_range() {
   start=${1:-10022}
   end=${2:-20000}
-  for port in $(seq $start $end); do
+
+  if ! command -v ss >/dev/null 2>&1; then
+    echo "Error: 'ss' command not found, cannot auto-detect free port. Please install 'iproute2' or specify --sshport manually." >&2
+    return 1
+  fi
+
+  for port in $(seq "$start" "$end"); do
     if ! ss -ltn | awk '{print $4}' | grep -q ":$port\$"; then
       echo "$port"
-      return
+      return 0
     fi
   done
   return 1
 }
 
-
-
 mkdir -p "$working/${_os}"
 
-
 echo "Using arch: $_arch"
-
-
 
 if [ "$_builder" ]; then
   echo "Builder version: $_builder"
   if [ -z "$_release" ]; then
     _meta="https://api.github.com/repos/$builder/releases/tags/v$_builder"
     _metafile="$working/${_os}/meta.json"
-    curl --retry 5 --retry-delay 3  -L "$_meta" >"$_metafile"
+    curl --retry 5 --retry-delay 3 -L "$_meta" >"$_metafile"
     if [ "$_arch" ]; then
-     _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
+      _release="$(cat "$_metafile"  | jq -r '.assets[].browser_download_url' | grep -i -- "${_arch}.qcow2.zst" | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
     else
-     _release="$(cat "$_metafile"  |  jq -r '.assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
+      _release="$(cat "$_metafile"  | jq -r '.assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 | rev | cut -d . -f 3- | rev)"
     fi
   fi
   if [ "$_arch" ]; then
@@ -235,41 +220,37 @@ if [ "$_builder" ]; then
   fi
 fi
 
-
 allReleases="$working/${_os}/all.json"
 
-
 if [ -z "$_release" ]; then
-  curl --retry 5 --retry-delay 3  -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
+  curl --retry 5 --retry-delay 3 -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
   if [ "$_arch" ]; then
-    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- ${_arch}.qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2 )"
+    _release="$(cat "$allReleases"  | jq -r '.[].assets[].browser_download_url' | grep -i -- "${_arch}.qcow2.zst" | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
   else
-    _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
+    _release="$(cat "$allReleases"  | jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.zst | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
     if [ -z "$_release" ]; then
-      _release="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
+      _release="$(cat "$allReleases"  | jq -r '.[].assets[].browser_download_url' | grep -i -- qcow2.xz | sort -r | head -1 | cut -d '/' -f 9 | cut -d - -f 2)"
     fi
   fi
   _release=${_release%%.qcow2*}
 fi
 
 echo "Using release: $_release"
-  
-  
+
 if [ -z "$zst_link" ]; then
   if [ ! -e "$allReleases" ]; then
-    curl --retry 5 --retry-delay 3  -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
+    curl --retry 5 --retry-delay 3 -L "https://api.github.com/repos/$builder/releases" >"$allReleases"
   fi
-  
+
   if [ -z "$_arch" ] || [ "$_arch" = "x86_64" ]; then
-    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}".qcow2.zst'$' | sort -r | head -1)"
+    zst_link="$(cat "$allReleases"  | jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}.qcow2.zst"$ | sort -r | head -1)"
     if [ -z "$zst_link" ]; then
-      zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}".qcow2.xz'$' | sort -r | head -1)"
+      zst_link="$(cat "$allReleases"  | jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}.qcow2.xz"$ | sort -r | head -1)"
     fi
   else
-    zst_link="$(cat "$allReleases"  |  jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}-${_arch}".qcow2.zst'$'| sort -r | head -1)"
+    zst_link="$(cat "$allReleases"  | jq -r '.[].assets[].browser_download_url' | grep -i -- "${_os}-${_release}-${_arch}.qcow2.zst"$ | sort -r | head -1)"
   fi
 fi
-
 
 echo "Using zst_link: $zst_link"
 
@@ -283,20 +264,22 @@ if [ -z "$_builder" ]; then
   echo "Builder ver: $_builder"
 fi
 
-
 _output="$working/${_os}/v${_builder}"
 mkdir -p "$_output"
 
-
-ovafile="$(echo "$zst_link" | rev  | cut -d / -f 1 | rev)"
-qow2="$(echo "$zst_link" | rev  | cut -d / -f 1 | cut -d . -f 2- | rev)"
- 
+ovafile="$(echo "$zst_link" | rev | cut -d / -f 1 | rev)"
+qow2="$(echo "$zst_link" | rev | cut -d / -f 1 | cut -d . -f 2- | rev)"
 
 if [ ! -e "$_output/$qow2" ]; then
   if [ ! -e "$_output/$ovafile" ]; then
     echo "Downloading $zst_link"
-    axel -q -n 8 -o "$_output/$ovafile"  "$zst_link"
-    
+    if command -v axel >/dev/null 2>&1; then
+      axel -q -n 8 -o "$_output/$ovafile" "$zst_link"
+    else
+      echo "Warning: axel not found, falling back to curl (single connection)." >&2
+      curl --retry 5 --retry-delay 3 -L "$zst_link" -o "$_output/$ovafile"
+    fi
+
     for i in $(seq 1 9) ; do
       _url="${zst_link}.$i"
       echo "Checking $_url"
@@ -304,7 +287,11 @@ if [ ! -e "$_output/$qow2" ]; then
         echo "Done"
         break
       fi
-      axel -q -n 8 -o "$_output/${ovafile}.$i"  "$_url"
+      if command -v axel >/dev/null 2>&1; then
+        axel -q -n 8 -o "$_output/${ovafile}.$i" "$_url"
+      else
+        curl --retry 5 --retry-delay 3 -L "$_url" -o "$_output/${ovafile}.$i"
+      fi
       ls -lah
       cat "$_output/${ovafile}.$i" >>"$_output/$ovafile"
       rm -f "$_output/${ovafile}.$i"
@@ -320,12 +307,10 @@ if [ ! -e "$_output/$qow2" ]; then
   echo "Extract finished"
 fi
 
-
 _name="$_os-$_release"
 if [ "$_arch" ]; then
   _name="$_os-$_release-$_arch"
 fi
-
 
 ###############################################
 _hostid_link="https://github.com/vmactions/${_os}-builder/releases/download/v${_builder}/${_name}-host.id_rsa"
@@ -335,10 +320,9 @@ _hostid="$_output/$(echo "$_hostid_link" | rev | cut -d / -f 1 | rev)"
 echo "Host id file: $_hostid"
 
 if [ ! -e "$_hostid" ]; then
- curl --retry 5 --retry-delay 3  -L  "$_hostid_link" >"$_hostid"
- chmod 600 "$_hostid"
+  curl --retry 5 --retry-delay 3 -L "$_hostid_link" >"$_hostid"
+  chmod 600 "$_hostid"
 fi
-
 
 _vmpub_link="https://github.com/vmactions/${_os}-builder/releases/download/v${_builder}/${_name}-id_rsa.pub"
 
@@ -346,21 +330,14 @@ echo "VM pub key link: $_vmpub_link"
 _vmpub="$_output/$(echo "$_vmpub_link" | rev | cut -d / -f 1 | rev)"
 if [ ! -e "$_vmpub" ]; then
   echo "VM pub key file: $_vmpub"
-  curl --retry 5 --retry-delay 3  -L  "$_vmpub_link" >"$_vmpub"
+  curl --retry 5 --retry-delay 3 -L "$_vmpub_link" >"$_vmpub"
 fi
-
-
 
 ls -lah "$_output"
 
 ##############################################
 
-
-
-
-
 _qowfull="$_output/$qow2"
-
 
 if [ -z "$_disktype" ]; then
   if [ "$_os" = "dragonflybsd" ]; then
@@ -380,45 +357,45 @@ if [ -z "$_nc" ]; then
   fi
 fi
 
-
 if [ -z "$_sshport" ]; then
-  _sshport=$(find_free_port_range)
+  _sshport=$(find_free_port_range) || {
+    echo "Failed to find free SSH port. Please specify --sshport manually." >&2
+    exit 1
+  }
 fi
-
 
 _addr="127.0.0.1"
 if [ "$_public" = "1" ] || [ "$_public" = "true" ]; then
   _addr=""
 fi
 
-_qemu_args=" -serial mon:stdio 
--name $_name 
--smp ${_cpu:-2} 
--m ${_mem:-6144} 
+_qemu_args="
+-serial mon:stdio
+-name $_name
+-smp ${_cpu:-2}
+-m ${_mem:-6144}
 -netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp:$_addr:${_sshport:-10022}-:22
--drive file=${_qowfull},format=qcow2,if=${_disktype} "
+-drive file=${_qowfull},format=qcow2,if=${_disktype}
+"
 
 if [ "$_qmon" ]; then
-  _qemu_args="-monitor telnet:localhost:$_qmon,server,nowait,nodelay  $_qemu_args "
+  _qemu_args="-monitor telnet:localhost:$_qmon,server,nowait,nodelay $_qemu_args"
 fi
 
 if [ "$_vnc" != "off" ]; then
   if [ -z "$_vnc" ]; then
-    if command -v ss; then
+    if command -v ss >/dev/null 2>&1; then
       _vnc=$(ss -4ntpl | grep :590 | wc -l)
-    elif command -v lsof; then
+    elif command -v lsof >/dev/null 2>&1; then
       _vnc=$(lsof -i4 -sTCP:LISTEN -n -P | grep :590 | wc -l)
-    elif command -v netstat; then
+    elif command -v netstat >/dev/null 2>&1; then
       _vnc=$(netstat -ntpl4 | grep :590 | wc -l)
     else
       _vnc=0
     fi
   fi
-  _qemu_args=" -display vnc=:$_vnc  $_qemu_args "
+  _qemu_args="-display vnc=:$_vnc $_qemu_args"
 fi
-
-
-
 
 _qemu_bin="qemu-system-x86_64"
 
@@ -435,59 +412,59 @@ if [ "$_arch" = "aarch64" ]; then
     dd if=/dev/zero of="$_efivars" bs=1M count=64
   fi
 
-  _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0 \
-  -device virtio-balloon-device "
+  if [ "${_os,,}" = "openbsd" ] && [ -z "$_cputype" ]; then
+    _cputype="cortex-a57"
+  fi
+  _cpumode="${_cputype:-cortex-a72}"
+
+  _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0 -device virtio-balloon-device"
 
   if [ "${_hostarch}" = "aarch64" ]; then
-    if [ "${_os,,}" = "openbsd" ] && [ -z "$_cputype" ]; then
-      _cputype="cortex-a57"
-    fi
-    _cpumode="${_cputype:-cortex-a72}"
-    #run arm64 on arm64
+    # run arm64 on arm64
     if [ -e "/dev/kvm" ]; then
-      _qemu_args="$_qemu_args -machine virt,accel=kvm,gic-version=3 
-        -cpu host,kvm=on,
-        -rtc base=utc 
-        -enable-kvm -global kvm-pit.lost_tick_policy=discard 
-        -global kvm-pit.lost_tick_policy=discard  
-        -drive if=pflash,format=raw,readonly=on,file=${_efi}
-        -drive if=pflash,format=raw,file=${_efivars}
-        "
+      _qemu_args="$_qemu_args \
+        -machine virt,accel=kvm,gic-version=3 \
+        -cpu host \
+        -rtc base=utc \
+        -enable-kvm \
+        -global kvm-pit.lost_tick_policy=discard \
+        -drive if=pflash,format=raw,readonly=on,file=${_efi} \
+        -drive if=pflash,format=raw,file=${_efivars},unit=1"
     else
-      _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
-        -cpu $_cpumode
-        -rtc base=utc 
-        -drive if=pflash,format=raw,readonly=on,file=${_efi}
-        -drive if=pflash,format=raw,file=${_efivars}
-        "
+      _qemu_args="$_qemu_args \
+        -machine virt,accel=tcg,gic-version=3 \
+        -cpu ${_cpumode} \
+        -rtc base=utc \
+        -drive if=pflash,format=raw,readonly=on,file=${_efi} \
+        -drive if=pflash,format=raw,file=${_efivars},unit=1"
     fi
   else
-    #run arm64 on x86
-    _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
-    -cpu $_cpumode
-    -rtc base=utc 
-    -drive if=pflash,format=raw,readonly=on,file=${_efi}
-    -drive if=pflash,format=raw,file=${_efivars}
-    "
-    
+    # run arm64 on x86
+    _qemu_args="$_qemu_args \
+      -machine virt,accel=tcg,gic-version=3 \
+      -cpu ${_cpumode} \
+      -rtc base=utc \
+      -drive if=pflash,format=raw,readonly=on,file=${_efi} \
+      -drive if=pflash,format=raw,file=${_efivars},unit=1"
   fi
 
 else
-  _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0,bus=pci.0,addr=0x3 
-  -device virtio-balloon-pci,bus=pci.0,addr=0x6 "
+  _qemu_args="$_qemu_args -device ${_nc:-e1000},netdev=net0,bus=pci.0,addr=0x3 -device virtio-balloon-pci,bus=pci.0,addr=0x6"
 
   if [ "${_hostarch}" = "x86_64" ]; then
-    #run x86 on x86
+    # run x86 on x86
     if [ -e "/dev/kvm" ]; then
-      _qemu_args="$_qemu_args -machine pc-i440fx-noble,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off 
-    -enable-kvm -global kvm-pit.lost_tick_policy=discard 
-    -global kvm-pit.lost_tick_policy=discard 
-    -cpu host,kvm=on,l3-cache=on,+hypervisor,migratable=no,+invtsc 
-    -rtc base=utc,driftfix=slew "
+      _qemu_args="$_qemu_args \
+        -machine pc-i440fx-noble,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off \
+        -enable-kvm \
+        -global kvm-pit.lost_tick_policy=discard \
+        -cpu host,kvm=on,l3-cache=on,+hypervisor,migratable=no,+invtsc \
+        -rtc base=utc,driftfix=slew"
     else
-      _qemu_args="$_qemu_args -machine pc-i440fx-noble,usb=off,dump-guest-core=off,hpet=off,acpi=on
-    -cpu qemu64 
-    -rtc base=utc,driftfix=slew "
+      _qemu_args="$_qemu_args \
+        -machine pc-i440fx-noble,usb=off,dump-guest-core=off,hpet=off,acpi=on \
+        -cpu qemu64 \
+        -rtc base=utc,driftfix=slew"
     fi
     if [ "$_useefi" ]; then
       _efi="/usr/share/qemu/OVMF.fd"
@@ -495,9 +472,9 @@ else
       if [ ! -e "$_efivars" ]; then
         dd if=/dev/zero of="$_efivars" bs=1M count=4
       fi
-      _qemu_args="$_qemu_args -drive if=pflash,format=raw,readonly=on,file=${_efi}
-    -drive if=pflash,format=raw,file=${_efivars}
-    "
+      _qemu_args="$_qemu_args \
+        -drive if=pflash,format=raw,readonly=on,file=${_efi} \
+        -drive if=pflash,format=raw,file=${_efivars}"
     fi
   else
     echo "not implemented"
@@ -505,22 +482,17 @@ else
   fi
 fi
 
-
 echo "_qemu_bin=$_qemu_bin"
 echo "_qemu_args=$_qemu_args"
-
-
 
 #########################################
 
 CONSOLE_NAME="$_name-console"
 CONSOLE_FILE="$_output/$_name-console.log"
-  
-  
-
-
 
 rm -f "$CONSOLE_FILE"
+
+
 screen -dmLS "$CONSOLE_NAME" -Logfile "$CONSOLE_FILE" -L $_qemu_bin $_qemu_args
 
 (
@@ -529,7 +501,7 @@ for i in $(seq 0 9) ; do
   screen -S "$CONSOLE_NAME" -p 0 -X stuff "\r"
   sleep 1
 done
-)&
+) &
 
 sleep 1
 
@@ -537,20 +509,17 @@ if screen -ls | grep -q "$CONSOLE_NAME"; then
   echo "QEMU started."
 else
   echo "QEMU start error: "
-  cat "$CONSOLE_FILE"
+  cat "$CONSOLE_FILE" || true
   exit 1
 fi
 
 ####################################
 
-
-
-
 _initInVM() {
   _showlog="$1"
   #initialize file mounting
   if [ "$_showlog" ]; then
-    tail -F "$CONSOLE_FILE"&
+    tail -F "$CONSOLE_FILE" &
     _tailid="$!"
   fi
 
@@ -559,39 +528,38 @@ _initInVM() {
   chmod 700 ~/.ssh
   cat "$_vmpub" >> ~/.ssh/authorized_keys
   touch ~/.ssh/config
-  if ! grep "Include config.d" ~/.ssh/config >/dev/null; then
+  if ! grep "Include config.d" ~/.ssh/config >/dev/null 2>&1; then
     echo 'Include config.d/*.conf' >>~/.ssh/config
   fi
-  
+
   mkdir -p ~/.ssh/config.d
-  echo "
+  cat >~/.ssh/config.d/$_name.conf <<EOF
 
 Host $_name
   LogLevel ERROR
   StrictHostKeyChecking no
-  SendEnv   CI  GITHUB_* 
+  SendEnv   CI  GITHUB_*
   UserKnownHostsFile=/dev/null
   User root
   HostName localhost
   Port $_sshport
   IdentityFile=$_hostid
-  
-">~/.ssh/config.d/$_name.conf
 
-  echo "
+EOF
+
+  cat >~/.ssh/config.d/$_sshport.conf <<EOF
 
 Host $_sshport
   LogLevel ERROR
   StrictHostKeyChecking no
-  SendEnv   CI  GITHUB_* 
+  SendEnv   CI  GITHUB_*
   UserKnownHostsFile=/dev/null
   User root
   HostName localhost
   Port $_sshport
   IdentityFile=$_hostid
-  
-">~/.ssh/config.d/$_sshport.conf
 
+EOF
 
   chmod 600 ~/.ssh/config
 
@@ -599,14 +567,14 @@ Host $_sshport
   while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
     echo "===> vm $_name is booting just wait."
     sleep 2
-    _retry=$(($_retry + 1))
+    _retry=$((_retry + 1))
     if [ $_retry -gt 300 ]; then
       echo "Boot failed."
       return 1
     fi
   done
   if [ "$_showlog" ]; then
-    kill "$_tailid"
+    kill "$_tailid" || true
   fi
   echo "OK Ready!"
 
@@ -617,6 +585,7 @@ Host $_sshport
     echo "Or just:  ssh $_sshport"
     echo "======================================"
   fi
+
   ssh "${_sshport}" "cat - >.ssh/config" <<EOF
 StrictHostKeyChecking=no
 
@@ -638,7 +607,7 @@ EOF
       while ! _syncSSHFS "$_vhost" "$_vguest"; do
         echo "error sshfs, let try again"
         sleep 2
-        _retry=$(($_retry + 1))
+        _retry=$((_retry + 1))
         if [ $_retry -gt 10 ]; then
           echo "sshfs failed."
           return 1
@@ -648,17 +617,18 @@ EOF
       while ! _syncNFS "$_vhost" "$_vguest"; do
         echo "error nfs, let try again"
         sleep 2
-        _retry=$(($_retry + 1))
+        _retry=$((_retry + 1))
         if [ $_retry -gt 10 ]; then
           echo "nfs failed."
           return 1
         fi
       done
     else
+      # rsync
       while ! _syncRSYNC "$_vhost" "$_vguest"; do
         echo "error rsync, let try again"
         sleep 2
-        _retry=$(($_retry + 1))
+        _retry=$((_retry + 1))
         if [ $_retry -gt 10 ]; then
           echo "rsync failed."
           return 1
@@ -668,7 +638,6 @@ EOF
 
   fi
 }
-
 
 _syncSSHFS() {
   _vhost="$1"
@@ -683,14 +652,14 @@ if [ "$_os" = "netbsd" ]; then
   fi
 else
   if [ "$_os" = "freebsd" ]; then
-    kldload  fusefs
+    kldload fusefs || true
   fi
 
-  if sshfs -o reconnect,ServerAliveCountMax=2,allow_other,default_permissions host:$_vhost $_vguest ; then
+  if sshfs -o reconnect,ServerAliveCountMax=2,allow_other,default_permissions host:"$_vhost" "$_vguest" ; then
     echo "run sshfs in vm is OK, show mount:"
-    /sbin/mount
+    /sbin/mount || mount
     if [ "$_os" = "netbsd" ]; then
-      tree $_vhost
+      tree "$_vhost" || true
     fi
   else
     echo "error run sshfs in vm."
@@ -702,47 +671,43 @@ fi
 echo "ssh finished."
 
 EOF
-
-
 }
 
 _syncNFS() {
   _vhost="$1"
   _vguest="$2"
   _SUDO=""
-  if command -v sudo >/dev/null; then
+  if command -v sudo >/dev/null 2>&1; then
     _SUDO="sudo"
   fi
   _entry="$_vhost *(rw,insecure,async,no_subtree_check,anonuid=$(id -u),anongid=$(id -g))"
-  if ! grep -- "$_vhost" /etc/exports; then
+  if ! grep -- "$_vhost" /etc/exports >/dev/null 2>&1; then
     echo "$_entry" | $_SUDO tee -a /etc/exports
     $_SUDO exportfs -a
-    $_SUDO service nfs-server restart
+    $_SUDO service nfs-server restart || $_SUDO systemctl restart nfs-server || true
   fi
   echo "Configuring NFS in VM with default command"
 
   ssh "${_sshport}" sh <<EOF
 mkdir -p "$_vguest"
 if [ "$_os" = "openbsd" ]; then
-  mount -t nfs -o -T 192.168.122.2:$_vhost $_vguest
+  mount -t nfs -o -T 192.168.122.2:"$_vhost" "$_vguest"
 elif [ -e "/sbin/mount" ]; then
-  /sbin/mount 192.168.122.2:$_vhost $_vguest
+  /sbin/mount 192.168.122.2:"$_vhost" "$_vguest"
 else
-  mount 192.168.122.2:$_vhost $_vguest
+  mount 192.168.122.2:"$_vhost" "$_vguest"
 fi
 
 EOF
   echo "Done with NFS"
-
 }
 
 _syncRSYNC() {
   _vhost="$1"
   _vguest="$2"
-
+  echo "rsync sync mode is not implemented yet." >&2
+  return 1
 }
-
-
 
 if [ "$_console" ]; then
   _initInVM >/dev/null &
@@ -762,8 +727,3 @@ else
   echo "Or just:  ssh $_sshport"
   echo "======================================"
 fi
-
-
-
-
-
