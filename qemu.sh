@@ -30,7 +30,7 @@ _cputype=""
 #e1000
 _nc=""
 
-_sshport="10022"
+_sshport=""
 #attach to ssh console by default
 _console=""
 _useefi=""
@@ -48,7 +48,16 @@ _qmon=""
 #disk type: ide or virtio
 _disktype=""
 
+#make the ssh port listening at 0.0.0.0, otherwise, it listens at 127.0.0.1
+_public=""
+
 _workingdir="$_script_home/output"
+
+if [ "$GOOGLE_CLOUD_SHELL" = "true" ]; then
+  mkdir -p /tmp/qemu.sh
+  _workingdir=/tmp/qemu.sh
+fi
+
 
 while [ ${#} -gt 0 ]; do
   case "${1}" in
@@ -84,7 +93,7 @@ while [ ${#} -gt 0 ]; do
     _nc="$2"
     shift
     ;;
-  --sshport)
+  --sshport|--ssh-port)
     _sshport="$2"
     shift
     ;;
@@ -119,6 +128,10 @@ while [ ${#} -gt 0 ]; do
     ;;
   --disktype)
     _disktype="$2"
+    shift
+    ;;
+  --public)
+    _public="$2"
     shift
     ;;
   *)
@@ -180,6 +193,20 @@ check_url_exists() {
     return 1
   fi
 }
+
+
+find_free_port_range() {
+  start=${1:-10022}
+  end=${2:-20000}
+  for port in $(seq $start $end); do
+    if ! ss -ltn | awk '{print $4}' | grep -q ":$port\$"; then
+      echo "$port"
+      return
+    fi
+  done
+  return 1
+}
+
 
 
 mkdir -p "$working/${_os}"
@@ -354,11 +381,21 @@ if [ -z "$_nc" ]; then
 fi
 
 
+if [ -z "$_sshport" ]; then
+  _sshport=$(find_free_port_range)
+fi
+
+
+_addr="127.0.0.1"
+if [ "$_public" = "1" ] || [ "$_public" = "true" ]; then
+  _addr=""
+fi
+
 _qemu_args=" -serial mon:stdio 
 -name $_name 
 -smp ${_cpu:-2} 
 -m ${_mem:-6144} 
--netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp::${_sshport:-10022}-:22
+-netdev user,id=net0,net=192.168.122.0/24,dhcpstart=192.168.122.50,hostfwd=tcp:$_addr:${_sshport:-10022}-:22
 -drive file=${_qowfull},format=qcow2,if=${_disktype} "
 
 if [ "$_qmon" ]; then
@@ -402,30 +439,30 @@ if [ "$_arch" = "aarch64" ]; then
   -device virtio-balloon-device "
 
   if [ "${_hostarch}" = "aarch64" ]; then
-    #run arm64 on arm64
-    if [ -e "/dev/kvm" ]; then
-      _qemu_args="$_qemu_args -machine virt,accel=kvm,gic-version=3 
-    -cpu host,kvm=on,
-    -rtc base=utc 
-    -enable-kvm -global kvm-pit.lost_tick_policy=discard 
-    -global kvm-pit.lost_tick_policy=discard  
-    -drive if=pflash,format=raw,readonly=on,file=${_efi}
-    -drive if=pflash,format=raw,file=${_efivars}
-    "
-    else
-      _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
-    -cpu host
-    -rtc base=utc 
-    -drive if=pflash,format=raw,readonly=on,file=${_efi}
-    -drive if=pflash,format=raw,file=${_efivars}
-    "
-    fi
-  else
-    #run arm64 on x86
     if [ "${_os,,}" = "openbsd" ] && [ -z "$_cputype" ]; then
       _cputype="cortex-a57"
     fi
     _cpumode="${_cputype:-cortex-a72}"
+    #run arm64 on arm64
+    if [ -e "/dev/kvm" ]; then
+      _qemu_args="$_qemu_args -machine virt,accel=kvm,gic-version=3 
+        -cpu host,kvm=on,
+        -rtc base=utc 
+        -enable-kvm -global kvm-pit.lost_tick_policy=discard 
+        -global kvm-pit.lost_tick_policy=discard  
+        -drive if=pflash,format=raw,readonly=on,file=${_efi}
+        -drive if=pflash,format=raw,file=${_efivars}
+        "
+    else
+      _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
+        -cpu $_cpumode
+        -rtc base=utc 
+        -drive if=pflash,format=raw,readonly=on,file=${_efi}
+        -drive if=pflash,format=raw,file=${_efivars}
+        "
+    fi
+  else
+    #run arm64 on x86
     _qemu_args="$_qemu_args -machine virt,accel=tcg,gic-version=3 
     -cpu $_cpumode
     -rtc base=utc 
@@ -529,7 +566,7 @@ _initInVM() {
   mkdir -p ~/.ssh/config.d
   echo "
 
-Host $_name  $_sshport
+Host $_name
   LogLevel ERROR
   StrictHostKeyChecking no
   SendEnv   CI  GITHUB_* 
@@ -540,6 +577,22 @@ Host $_name  $_sshport
   IdentityFile=$_hostid
   
 ">~/.ssh/config.d/$_name.conf
+
+  echo "
+
+Host $_sshport
+  LogLevel ERROR
+  StrictHostKeyChecking no
+  SendEnv   CI  GITHUB_* 
+  UserKnownHostsFile=/dev/null
+  User root
+  HostName localhost
+  Port $_sshport
+  IdentityFile=$_hostid
+  
+">~/.ssh/config.d/$_sshport.conf
+
+
   chmod 600 ~/.ssh/config
 
   _retry=0
