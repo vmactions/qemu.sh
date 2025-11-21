@@ -413,11 +413,11 @@ if [ "$_vnc" != "off" ]; then
             fi
             ;;
         Linux)
-            if command -v ss >/dev/null 2>&1; then
+            if command -v ss >/dev/null 2>&1 && ss -4ntpl | grep -c :590 ; then
                 _vnc=$(ss -4ntpl | grep -c :590)
-            elif command -v lsof >/dev/null 2>&1; then
+            elif command -v lsof >/dev/null 2>&1 && lsof -i4 -sTCP:LISTEN -n -P | grep -c ':590'; then
                 _vnc=$(lsof -i4 -sTCP:LISTEN -n -P | grep -c ':590')
-            elif command -v netstat >/dev/null 2>&1; then
+            elif command -v netstat >/dev/null 2>&1 && netstat -ntpl4 | grep -c :590; then
                 _vnc=$(netstat -ntpl4 | grep -c :590)
             else
                 _vnc=0
