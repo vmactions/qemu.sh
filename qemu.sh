@@ -148,6 +148,11 @@ if [ "$_os" = "freebsd" ]; then
 fi
 
 _hostarch="$(uname -m)"
+if [ "$_hostarch" = "arm64" ]; then
+  #for macOS
+  _hostarch="aarch64"
+fi
+
 if [ -z "${_arch}" ]; then
   echo "Use host arch: $_hostarch"
   _arch="$_hostarch"
@@ -182,18 +187,33 @@ check_url_exists() {
 find_free_port_range() {
   start=${1:-10022}
   end=${2:-20000}
-
-  if ! command -v ss >/dev/null 2>&1; then
-    echo "Error: 'ss' command not found, cannot auto-detect free port. Please install 'iproute2' or specify --sshport manually." >&2
-    return 1
-  fi
+  OS_NAME=$(uname -s)
 
   for port in $(seq "$start" "$end"); do
-    if ! ss -ltn | awk '{print $4}' | grep -q ":$port\$"; then
-      echo "$port"
-      return 0
+    if [ "$OS_NAME" = "Darwin" ]; then
+      if command -v lsof >/dev/null 2>&1; then
+        if ! lsof -iTCP -sTCP:LISTEN -P -n | grep -q ":$port (LISTEN)$"; then
+          echo "$port"
+          return 0
+        fi
+      else
+        echo "Error: 'lsof' command not found. Cannot auto-detect free port." >&2
+        return 1
+      fi
+    else
+      if command -v ss >/dev/null 2>&1; then
+        if ! ss -ltn | awk '{print $4}' | grep -q ":$port\$"; then
+          echo "$port"
+          return 0
+        fi
+      else
+        echo "Error: 'ss' command not found, cannot auto-detect free port. Please install 'iproute2' or specify ports manually." >&2
+        return 1
+      fi
     fi
   done
+
+  echo "Error: No free port found in range $start-$end." >&2
   return 1
 }
 
@@ -384,17 +404,32 @@ fi
 
 if [ "$_vnc" != "off" ]; then
   if [ -z "$_vnc" ]; then
-    if command -v ss >/dev/null 2>&1; then
-      _vnc=$(ss -4ntpl | grep :590 | wc -l)
-    elif command -v lsof >/dev/null 2>&1; then
-      _vnc=$(lsof -i4 -sTCP:LISTEN -n -P | grep :590 | wc -l)
-    elif command -v netstat >/dev/null 2>&1; then
-      _vnc=$(netstat -ntpl4 | grep :590 | wc -l)
-    else
-      _vnc=0
-    fi
+    case "$(uname -s)" in
+        Darwin)
+            if command -v lsof >/dev/null 2>&1 && lsof -i4 -sTCP:LISTEN -n -P | grep -c ':590' >/dev/null 2>&1; then
+                _vnc=$(lsof -i4 -sTCP:LISTEN -n -P | grep -c ':590')
+            else
+                _vnc=0
+            fi
+            ;;
+        Linux)
+            if command -v ss >/dev/null 2>&1; then
+                _vnc=$(ss -4ntpl | grep -c :590)
+            elif command -v lsof >/dev/null 2>&1; then
+                _vnc=$(lsof -i4 -sTCP:LISTEN -n -P | grep -c ':590')
+            elif command -v netstat >/dev/null 2>&1; then
+                _vnc=$(netstat -ntpl4 | grep -c :590)
+            else
+                _vnc=0
+            fi
+            ;;
+        *)
+            _vnc=0
+            ;;
+    esac
   fi
-  _qemu_args="-display vnc=:$_vnc $_qemu_args"
+  
+  _qemu_args="-display vnc=$_addr:$_vnc $_qemu_args"
 fi
 
 _qemu_bin="qemu-system-x86_64"
@@ -405,14 +440,19 @@ if [ "$_arch" = "aarch64" ]; then
   _efi="$_output/$_name-QEMU_EFI.fd"
   if [ ! -e "$_efi" ]; then
     dd if=/dev/zero of="$_efi" bs=1M count=64
-    dd if=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd of="$_efi" conv=notrunc
+    if [ -e "/opt/homebrew/share/qemu/edk2-aarch64-code.fd" ]; then
+      #macOS
+      dd if=/opt/homebrew/share/qemu/edk2-aarch64-code.fd of="$_efi" conv=notrunc
+    else
+      dd if=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd of="$_efi" conv=notrunc
+    fi
   fi
   _efivars="$_output/$_name-QEMU_EFI_VARS.fd"
   if [ ! -e "$_efivars" ]; then
     dd if=/dev/zero of="$_efivars" bs=1M count=64
   fi
 
-  if [ "${_os,,}" = "openbsd" ] && [ -z "$_cputype" ]; then
+  if [ "$(echo "$_os" | tr '[:upper:]' '[:lower:]')" = "openbsd" ] && [ -z "$_cputype" ]; then
     _cputype="cortex-a57"
   fi
   _cpumode="${_cputype:-cortex-a72}"
@@ -431,8 +471,12 @@ if [ "$_arch" = "aarch64" ]; then
         -drive if=pflash,format=raw,readonly=on,file=${_efi} \
         -drive if=pflash,format=raw,file=${_efivars},unit=1"
     else
+      _accl="tcg"
+      if [ "$(uname -s)" = "Darwin" ]; then
+        _accl="hvf"
+      fi
       _qemu_args="$_qemu_args \
-        -machine virt,accel=tcg,gic-version=3 \
+        -machine virt,accel=$_accl,gic-version=3 \
         -cpu ${_cpumode} \
         -rtc base=utc \
         -drive if=pflash,format=raw,readonly=on,file=${_efi} \
@@ -455,14 +499,14 @@ else
     # run x86 on x86
     if [ -e "/dev/kvm" ]; then
       _qemu_args="$_qemu_args \
-        -machine pc-i440fx-noble,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off \
+        -machine pc,accel=kvm,hpet=off,smm=off,graphics=off,vmport=off \
         -enable-kvm \
         -global kvm-pit.lost_tick_policy=discard \
         -cpu host,kvm=on,l3-cache=on,+hypervisor,migratable=no,+invtsc \
         -rtc base=utc,driftfix=slew"
     else
       _qemu_args="$_qemu_args \
-        -machine pc-i440fx-noble,usb=off,dump-guest-core=off,hpet=off,acpi=on \
+        -machine pc,usb=off,dump-guest-core=off,hpet=off,acpi=on \
         -cpu qemu64 \
         -rtc base=utc,driftfix=slew"
     fi
@@ -477,8 +521,11 @@ else
         -drive if=pflash,format=raw,file=${_efivars}"
     fi
   else
-    echo "not implemented"
-    exit 1
+    _accl="tcg"
+    _qemu_args="$_qemu_args \
+      -machine pc,accel=$_accl,hpet=off,smm=off,graphics=off,vmport=off  \
+      -cpu qemu64 \
+      -rtc base=utc"
   fi
 fi
 
@@ -564,7 +611,7 @@ EOF
   chmod 600 ~/.ssh/config
 
   _retry=0
-  while ! timeout 2 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
+  while ! ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$_hostid" -p "${_sshport}" root@localhost exit >/dev/null 2>&1; do
     echo "===> vm $_name is booting just wait."
     sleep 2
     _retry=$((_retry + 1))
