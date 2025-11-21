@@ -52,7 +52,7 @@ jobs:
         
         touch justcheck.txt
         
-        bash qemu.sh --os "${{ inputs.os }}" --release "${{ inputs.release }}" --arch "${{ inputs.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022 --nc "${{ inputs.nc }}"
+        bash -x qemu.sh --os "${{ inputs.os }}" --release "${{ inputs.release }}" --arch "${{ inputs.arch }}" -d -v "$(pwd):/mnt/host" --sshport 10022 --nc "${{ inputs.nc }}"
         # We use the ssh port as an alias to the vm, so we can use 'ssh $port' to login
         ssh 10022 ls /mnt/host
         
